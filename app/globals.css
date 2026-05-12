@@ -1,0 +1,270 @@
+@import url('https://fonts.googleapis.com/css2?family=Open+Sans:ital,wght@0,300;0,400;0,600;0,700;0,800;1,300;1,400;1,600;1,700;1,800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* ─── Czechitas brand colors ─────────────────────────────────── */
+    --czechitas-pink:      #E6007E;
+    --czechitas-blue:      #2D2E83;
+    --czechitas-pink-rgb:  230, 0, 126;
+    --czechitas-blue-rgb:  45, 46, 131;
+
+    /* Gradient shades (only in gradient, never solo) */
+    --gradient-pink-1: #E6007E;
+    --gradient-pink-2: #F8469B;
+    --gradient-pink-3: #FF82E7;
+    --gradient-pink-4: #EC58DE;
+
+    /* ─── App tokens ─────────────────────────────────────────────── */
+    --background:           0 0% 100%;
+    --foreground:           235 50% 14%;    /* near-dark-blue */
+
+    --card:                 0 0% 100%;
+    --card-foreground:      235 50% 14%;
+
+    --popover:              0 0% 100%;
+    --popover-foreground:   235 50% 14%;
+
+    --primary:              235 50% 35%;    /* Czechitas dark blue */
+    --primary-foreground:   0 0% 100%;
+
+    --secondary:            235 30% 95%;
+    --secondary-foreground: 235 50% 25%;
+
+    --muted:                235 20% 94%;
+    --muted-foreground:     235 15% 52%;
+
+    --accent:               326 100% 45%;   /* Czechitas pink */
+    --accent-foreground:    0 0% 100%;
+
+    --destructive:          0 72% 51%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border:               235 20% 88%;
+    --input:                235 20% 88%;
+    --ring:                 326 100% 45%;
+
+    --radius: 0.5rem;
+
+    /* Status */
+    --status-available: 326 100% 45%;   /* pink */
+    --status-preparing: 235 50% 55%;    /* medium blue */
+    --status-locked:    235 10% 68%;    /* gray-blue */
+
+    --font-sans: 'Open Sans', system-ui, sans-serif;
+    --font-mono: 'JetBrains Mono', 'Courier New', monospace;
+  }
+}
+
+@layer base {
+  * { @apply border-border; }
+
+  html {
+    font-size: 17px;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-sans);
+    font-weight: 400;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-sans);
+    font-weight: 800;
+    line-height: 1.2;
+    letter-spacing: 0.01em;
+    text-transform: uppercase;
+  }
+}
+
+/* ─── Czechitas gradient utilities ─────────────────────────────── */
+.gradient-czechitas {
+  background: linear-gradient(135deg,
+    var(--gradient-pink-1) 0%,
+    var(--gradient-pink-2) 40%,
+    var(--gradient-pink-4) 70%,
+    var(--gradient-pink-3) 100%);
+}
+
+.gradient-text-czechitas {
+  background: linear-gradient(90deg,
+    var(--czechitas-pink) 0%,
+    var(--gradient-pink-4) 60%,
+    var(--gradient-pink-3) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ─── Reading typography ─────────────────────────────────────────── */
+.prose-lecture {
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  line-height: 1.8;
+  font-weight: 400;
+  color: hsl(var(--foreground));
+}
+
+.prose-lecture p {
+  margin-bottom: 1.4em;
+}
+
+.prose-lecture h1,
+.prose-lecture h2,
+.prose-lecture h3,
+.prose-lecture h4 {
+  font-family: var(--font-sans);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-top: 2.25em;
+  margin-bottom: 0.75em;
+  color: var(--czechitas-blue);
+}
+
+.prose-lecture h1 { font-size: 1.75rem; }
+.prose-lecture h2 { font-size: 1.35rem; border-bottom: 2px solid var(--czechitas-pink); padding-bottom: 0.3em; }
+.prose-lecture h3 { font-size: 1.1rem; color: var(--czechitas-pink); }
+.prose-lecture h4 { font-size: 1rem; }
+
+.prose-lecture a {
+  color: var(--czechitas-pink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: rgba(var(--czechitas-pink-rgb), 0.35);
+  transition: text-decoration-color 0.15s;
+}
+.prose-lecture a:hover {
+  text-decoration-color: var(--czechitas-pink);
+}
+
+.prose-lecture ul,
+.prose-lecture ol {
+  padding-left: 1.6em;
+  margin-bottom: 1.4em;
+}
+.prose-lecture ul { list-style-type: disc; }
+.prose-lecture ol { list-style-type: decimal; }
+.prose-lecture li { margin-bottom: 0.35em; }
+
+.prose-lecture blockquote {
+  border-left: 3px solid var(--czechitas-pink);
+  padding: 0.75em 1.25em;
+  margin: 2em 0;
+  background: rgba(var(--czechitas-pink-rgb), 0.04);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  color: hsl(var(--foreground) / 0.72);
+  font-style: italic;
+  font-weight: 300;
+}
+.prose-lecture blockquote p { margin-bottom: 0; }
+
+.prose-lecture code:not(pre code) {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  background: hsl(var(--muted));
+  color: var(--czechitas-pink);
+  padding: 0.15em 0.4em;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+.prose-lecture pre {
+  background: var(--czechitas-blue);
+  border-radius: var(--radius);
+  padding: 1.25em 1.5em;
+  overflow-x: auto;
+  margin: 1.75em 0;
+  position: relative;
+  border: 1px solid rgba(45, 46, 131, 0.5);
+}
+
+.prose-lecture pre code {
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  line-height: 1.65;
+  color: hsl(230 60% 92%);
+  background: transparent;
+  padding: 0;
+}
+
+.prose-lecture table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 2em 0;
+  font-size: 0.95em;
+}
+.prose-lecture th {
+  font-weight: 800;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 0.75em 1em;
+  background: var(--czechitas-blue);
+  color: #fff;
+  text-align: left;
+}
+.prose-lecture td {
+  padding: 0.75em 1em;
+  border-bottom: 1px solid hsl(var(--border));
+}
+.prose-lecture tr:last-child td { border-bottom: none; }
+
+.prose-lecture hr {
+  border: none;
+  border-top: 2px solid var(--czechitas-pink);
+  margin: 2.5em 0;
+  opacity: 0.25;
+}
+
+/* ─── Copy button ──────────────────────────────────────────────── */
+.code-block-wrapper { position: relative; }
+
+.code-copy-btn {
+  position: absolute;
+  top: 0.6rem;
+  right: 0.6rem;
+  background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 4px;
+  color: hsl(230 60% 85%);
+  padding: 0.25rem 0.6rem;
+  font-family: var(--font-sans);
+  font-size: 0.7rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  opacity: 0;
+}
+.code-block-wrapper:hover .code-copy-btn { opacity: 1; }
+.code-copy-btn:hover {
+  background: rgba(255,255,255,0.2);
+  color: #fff;
+}
+
+/* ─── Status badges ────────────────────────────────────────────── */
+.badge-available {
+  background: rgba(var(--czechitas-pink-rgb), 0.1);
+  color: var(--czechitas-pink);
+  border: 1px solid rgba(var(--czechitas-pink-rgb), 0.3);
+}
+.badge-preparing {
+  background: rgba(var(--czechitas-blue-rgb), 0.1);
+  color: var(--czechitas-blue);
+  border: 1px solid rgba(var(--czechitas-blue-rgb), 0.25);
+}
+.badge-locked {
+  background: hsl(var(--muted));
+  color: hsl(var(--muted-foreground));
+  border: 1px solid hsl(var(--border));
+}
+
+/* Hide Next.js badge */
+body nextjs-portal { display: none; }

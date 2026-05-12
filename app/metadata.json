@@ -1,0 +1,16 @@
+{
+  "/": {
+    "title": "Vibe coding — Materiály k online kurzu",
+    "description": "Přehled lekcí online kurzu Vibe coding. Otevřete libovolnou lekci a čtěte kurz.",
+    "openGraph": {
+      "images": ""
+    }
+  },
+  "/o-kurzu": {
+    "title": "O kurzu — Vibe coding",
+    "description": "Informace o online kurzu Vibe coding.",
+    "openGraph": {
+      "images": ""
+    }
+  }
+}
