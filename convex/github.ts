@@ -7,10 +7,9 @@ import { getAuthUserId } from "@convex-dev/auth/server"
 import { Id } from "./_generated/dataModel"
 
 const REPO = "pesikj/vibecoding-macaly-course"
-const BRANCH = "main"
 
-async function githubFetch(path: string, token: string): Promise<Response> {
-  return fetch(`https://api.github.com/repos/${REPO}/contents/${path}?ref=${BRANCH}`, {
+async function githubFetch(path: string, token: string, branch: string): Promise<Response> {
+  return fetch(`https://api.github.com/repos/${REPO}/contents/${path}?ref=${branch}`, {
     headers: {
       Authorization: `Bearer ${token}`,
       Accept: "application/vnd.github+json",
@@ -29,8 +28,8 @@ const EXT_TO_MIME: Record<string, string> = {
 }
 
 /** Fetch image from GitHub and return as base64 data URI, or null on failure */
-async function fetchImageAsDataUri(imagePath: string, token: string): Promise<string | null> {
-  const res = await githubFetch(imagePath, token)
+async function fetchImageAsDataUri(imagePath: string, token: string, branch: string): Promise<string | null> {
+  const res = await githubFetch(imagePath, token, branch)
   if (!res.ok) {
     console.error(`Failed to fetch image ${imagePath}: ${res.status}`)
     return null
@@ -44,7 +43,7 @@ async function fetchImageAsDataUri(imagePath: string, token: string): Promise<st
 }
 
 /** Replace relative image references with inline base64 data URIs */
-async function embedImages(markdown: string, directory: string, token: string): Promise<string> {
+async function embedImages(markdown: string, directory: string, token: string, branch: string): Promise<string> {
   const imageRegex = /!\[([^\]]*)\]\((?!https?:\/\/)([^)]+)\)/g
   const matches: RegExpExecArray[] = []
   let m: RegExpExecArray | null
@@ -55,8 +54,8 @@ async function embedImages(markdown: string, directory: string, token: string): 
     const [fullMatch, alt, src] = match
     const cleanSrc = src.startsWith("./") ? src.slice(2) : src
     const imagePath = `${directory}/${cleanSrc}`
-    console.log(`Embedding image: ${imagePath}`)
-    const dataUri = await fetchImageAsDataUri(imagePath, token)
+    console.log(`Embedding image: ${imagePath} (branch: ${branch})`)
+    const dataUri = await fetchImageAsDataUri(imagePath, token, branch)
     if (dataUri) {
       result = result.replace(fullMatch, `![${alt}](${dataUri})`)
     }
@@ -65,13 +64,14 @@ async function embedImages(markdown: string, directory: string, token: string): 
 }
 
 export const syncFromGithub = action({
-  args: {},
+  args: { branch: v.optional(v.string()) },
   returns: v.object({
     success: v.boolean(),
     message: v.string(),
     lecturesSynced: v.number(),
   }),
-  handler: async (ctx) => {
+  handler: async (ctx, { branch: branchArg }) => {
+    const branch = branchArg?.trim() || "main"
     const token = process.env.GITHUB_TOKEN
     if (!token) {
       return { success: false, message: "GITHUB_TOKEN není nastaven.", lecturesSynced: 0 }
@@ -86,16 +86,16 @@ export const syncFromGithub = action({
 
     try {
       // 1. Fetch lectures.json
-      const lecturesRes = await githubFetch("lectures.json", token)
+      const lecturesRes = await githubFetch("lectures.json", token, branch)
       if (!lecturesRes.ok) {
-        const msg = `Nelze načíst lectures.json: HTTP ${lecturesRes.status}`
+        const msg = `Nelze načíst lectures.json z větve "${branch}": HTTP ${lecturesRes.status}`
         await ctx.runMutation(internal.syncLog.finishSyncLog, { logId, status: "error", message: msg, lecturesSynced: 0 })
         return { success: false, message: msg, lecturesSynced: 0 }
       }
 
       const lecturesFile = await lecturesRes.json() as { content: string }
       const lecturesMap: Record<string, string> = JSON.parse(decodeBase64(lecturesFile.content))
-      console.log("lectures.json:", lecturesMap)
+      console.log(`lectures.json (branch: ${branch}):`, lecturesMap)
 
       // 2. Fetch each lecture + embed images
       let synced = 0
@@ -105,7 +105,7 @@ export const syncFromGithub = action({
         const mdPath = `${directory}/lekce-${lectureId}.md`
         console.log(`Fetching: ${mdPath}`)
 
-        const mdRes = await githubFetch(mdPath, token)
+        const mdRes = await githubFetch(mdPath, token, branch)
         if (!mdRes.ok) {
           console.error(`Failed ${mdPath}: ${mdRes.status}`)
           errors.push(`lekce-${lectureId} (HTTP ${mdRes.status})`)
@@ -116,7 +116,7 @@ export const syncFromGithub = action({
         let markdown = decodeBase64(mdFile.content)
 
         // Embed images as base64 data URIs so they work without any proxy
-        markdown = await embedImages(markdown, directory, token)
+        markdown = await embedImages(markdown, directory, token, branch)
 
         const normalizedId = lectureId.startsWith("lekce-") ? lectureId : `lekce-${lectureId}`
         await ctx.runMutation(internal.lectures.upsertLectureContent, { lectureId: normalizedId, markdown })
