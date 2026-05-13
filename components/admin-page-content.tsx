@@ -176,13 +176,14 @@ function AdminDashboard() {
   const syncLog = useQuery(api.lectures.getLatestSyncLog);
   const syncAction = useAction(api.github.syncFromGithub);
   const [syncing, setSyncing] = useState(false);
+  const [branch, setBranch] = useState("main");
   const [syncResult, setSyncResult] = useState<{ success: boolean; message: string } | null>(null);
 
   const handleSync = async () => {
     setSyncing(true);
     setSyncResult(null);
     try {
-      const result = await syncAction({});
+      const result = await syncAction({ branch: branch.trim() || "main" });
       setSyncResult(result);
       console.log("Sync result:", result);
     } catch (err) {
@@ -261,9 +262,28 @@ function AdminDashboard() {
           >
             Synchronizace obsahu
           </h2>
-          <p className="mb-6 text-sm text-muted-foreground" style={{ fontFamily: "var(--font-sans)" }}>
+          <p className="mb-4 text-sm text-muted-foreground" style={{ fontFamily: "var(--font-sans)" }}>
             Stáhne obsah lekcí z&nbsp;GitHub repozitáře a uloží do databáze.
           </p>
+
+          <div className="mb-4 flex items-center gap-3">
+            <label
+              htmlFor="branch-input"
+              className="shrink-0 text-sm font-bold text-muted-foreground"
+              style={{ fontFamily: "var(--font-sans)" }}
+            >
+              Větev
+            </label>
+            <input
+              id="branch-input"
+              type="text"
+              value={branch}
+              onChange={(e) => setBranch(e.target.value)}
+              disabled={syncing}
+              placeholder="main"
+              className="rounded-lg border border-border bg-card px-3 py-1.5 font-mono text-sm outline-none focus:border-current disabled:opacity-50"
+            />
+          </div>
 
           <button
             onClick={handleSync}
