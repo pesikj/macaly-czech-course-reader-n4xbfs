@@ -21,7 +21,8 @@ export default defineSchema({
 
   lectureContents: defineTable({
     lectureId: v.string(),
-    markdown: v.string(),
+    markdown: v.optional(v.string()),
+    storageId: v.optional(v.id("_storage")),
     syncedAt: v.number(),
   }).index("by_lectureId", ["lectureId"]),
 

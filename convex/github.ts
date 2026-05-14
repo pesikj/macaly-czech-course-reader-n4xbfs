@@ -119,7 +119,7 @@ export const syncFromGithub = action({
         markdown = await embedImages(markdown, directory, token, branch)
 
         const normalizedId = lectureId.startsWith("lekce-") ? lectureId : `lekce-${lectureId}`
-        await ctx.runMutation(internal.lectures.upsertLectureContent, { lectureId: normalizedId, markdown })
+        await ctx.runAction(internal.lectures.upsertLectureContent, { lectureId: normalizedId, markdown })
         synced++
       }
 
