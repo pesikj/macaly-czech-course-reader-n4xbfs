@@ -8,7 +8,7 @@ import { api } from "@/convex/_generated/api"
 import { LogOut } from "lucide-react"
 
 function NavbarAuth() {
-  const { signOut } = useAuthActions()
+  const { signOut } = useAuthActions() ?? {}
   const user = useQuery(api.users.currentLoggedInUser)
 
   return (
@@ -21,7 +21,7 @@ function NavbarAuth() {
           {user?.email ?? ""}
         </span>
         <button
-          onClick={() => void signOut()}
+          onClick={() => signOut && void signOut()}
           className="flex items-center gap-1.5 rounded px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
           style={{ fontFamily: "var(--font-sans)" }}
         >
