@@ -14,6 +14,11 @@ export default defineSchema({
     isAnonymous: v.optional(v.boolean()),
   }).index("email", ["email"]),
 
+  allowedUsers: defineTable({
+    email: v.string(),
+    isAdmin: v.boolean(),
+  }).index("by_email", ["email"]),
+
   lectureContents: defineTable({
     lectureId: v.string(),
     markdown: v.string(),

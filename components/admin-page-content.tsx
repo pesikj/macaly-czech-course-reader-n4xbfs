@@ -1,10 +1,30 @@
 "use client";
 
-import { Authenticated, Unauthenticated, AuthLoading, useQuery, useAction } from "convex/react";
+import Link from "next/link";
+import {
+  Authenticated,
+  Unauthenticated,
+  AuthLoading,
+  useQuery,
+  useAction,
+  useMutation,
+} from "convex/react";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { api } from "@/convex/_generated/api";
-import { useState } from "react";
-import { RefreshCw, LogOut, CheckCircle, XCircle, Clock, AlertCircle } from "lucide-react";
+import { useState, useRef } from "react";
+import {
+  RefreshCw,
+  LogOut,
+  CheckCircle,
+  XCircle,
+  Clock,
+  AlertCircle,
+  UserPlus,
+  Trash2,
+  Upload,
+  Users,
+} from "lucide-react";
+import type { Id } from "@/convex/_generated/dataModel";
 
 // ── Sign-in form ─────────────────────────────────────────────────
 
@@ -12,8 +32,15 @@ function SignInForm() {
   const { signIn } = useAuthActions();
   const [step, setStep] = useState<"email" | "code">("email");
   const [email, setEmail] = useState("");
+  const [pendingEmail, setPendingEmail] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Pre-check if email is allowed (debounce via query skip)
+  const checkAllowed = useQuery(
+    api.allowedUsers.checkEmailAllowed,
+    pendingEmail.length > 3 ? { email: pendingEmail } : "skip"
+  );
 
   const handleEmailSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -21,7 +48,18 @@ function SignInForm() {
     setIsLoading(true);
     try {
       const formData = new FormData(e.currentTarget);
-      setEmail(formData.get("email") as string);
+      const enteredEmail = (formData.get("email") as string).trim().toLowerCase();
+
+      // Re-query whitelist synchronously using the value we already have
+      // checkAllowed may be undefined if query is loading — treat as allowed to avoid blocking
+      if (checkAllowed === false) {
+        setError("Tento e-mail není v seznamu oprávněných uživatelů.");
+        setIsLoading(false);
+        return;
+      }
+
+      setEmail(enteredEmail);
+      formData.set("email", enteredEmail);
       await signIn("resend-otp", formData);
       setStep("code");
     } catch {
@@ -48,7 +86,6 @@ function SignInForm() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="w-full max-w-sm">
-        {/* Logo strip */}
         <div
           className="mb-8 h-1.5 w-16 rounded-full"
           style={{ background: "var(--czechitas-pink)" }}
@@ -80,6 +117,7 @@ function SignInForm() {
               placeholder="vas@email.cz"
               required
               disabled={isLoading}
+              onChange={(e) => setPendingEmail(e.target.value)}
               className="w-full rounded-lg border border-border bg-card px-4 py-2.5 text-sm outline-none focus:border-current"
               style={{ fontFamily: "var(--font-sans)" }}
             />
@@ -163,9 +201,250 @@ function StatusBadge({ status }: { status: "running" | "success" | "error" }) {
 
 function formatDate(ts: number) {
   return new Date(ts).toLocaleString("cs-CZ", {
-    day: "2-digit", month: "2-digit", year: "numeric",
-    hour: "2-digit", minute: "2-digit",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
   });
+}
+
+// ── User management section ───────────────────────────────────────
+
+function UserManagement() {
+  const users = useQuery(api.allowedUsers.list);
+  const addUser = useMutation(api.allowedUsers.add);
+  const addBulk = useMutation(api.allowedUsers.addBulk);
+  const removeUser = useMutation(api.allowedUsers.remove);
+
+  const [newEmail, setNewEmail] = useState("");
+  const [newIsAdmin, setNewIsAdmin] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
+  const [addSuccess, setAddSuccess] = useState<string | null>(null);
+  const [isAdding, setIsAdding] = useState(false);
+
+  const [csvResult, setCsvResult] = useState<{ added: number; skipped: number } | null>(null);
+  const [csvError, setCsvError] = useState<string | null>(null);
+  const [isCsvLoading, setIsCsvLoading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleAddUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAddError(null);
+    setAddSuccess(null);
+    if (!newEmail.trim()) return;
+    setIsAdding(true);
+    try {
+      const result = await addUser({ email: newEmail.trim(), isAdmin: newIsAdmin });
+      if (result === null) {
+        setAddError("Tento e-mail je již v seznamu.");
+      } else {
+        setAddSuccess(`Uživatel ${newEmail.trim().toLowerCase()} byl přidán.`);
+        setNewEmail("");
+        setNewIsAdmin(false);
+      }
+    } catch (err) {
+      setAddError(String(err));
+    } finally {
+      setIsAdding(false);
+    }
+  };
+
+  const handleCsvUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setCsvError(null);
+    setCsvResult(null);
+    setIsCsvLoading(true);
+    try {
+      const text = await file.text();
+      // Support CSV with or without header, one email per line or comma-separated
+      const lines = text.split(/[\r\n,;]+/).map((l) => l.trim()).filter(Boolean);
+      // Filter out obvious header lines like "email", "e-mail", etc.
+      const emails = lines.filter(
+        (l) => l.includes("@") && !l.toLowerCase().startsWith("email")
+      );
+      if (emails.length === 0) {
+        setCsvError("V souboru nebyly nalezeny žádné platné e-mailové adresy.");
+        return;
+      }
+      const result = await addBulk({ emails, isAdmin: false });
+      setCsvResult(result);
+      console.log("CSV import result:", result);
+    } catch (err) {
+      setCsvError(String(err));
+    } finally {
+      setIsCsvLoading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const handleRemove = async (id: Id<"allowedUsers">) => {
+    if (!confirm("Opravdu chcete odstranit tohoto uživatele?")) return;
+    try {
+      await removeUser({ id });
+    } catch (err) {
+      alert(String(err));
+    }
+  };
+
+  return (
+    <div className="mt-6 rounded-xl border border-border bg-card p-6 shadow-sm">
+      <div className="mb-5 flex items-center gap-2">
+        <Users className="h-5 w-5" style={{ color: "var(--czechitas-blue)" }} />
+        <h2
+          className="text-lg font-black uppercase tracking-tight"
+          style={{ fontFamily: "var(--font-sans)", color: "var(--czechitas-blue)" }}
+        >
+          Správa uživatelů
+        </h2>
+      </div>
+
+      {/* Add single user */}
+      <form onSubmit={handleAddUser} className="mb-5 flex flex-wrap items-end gap-3">
+        <div className="flex-1 min-w-[200px]">
+          <label
+            className="mb-1 block text-xs font-bold uppercase tracking-wider text-muted-foreground"
+            style={{ fontFamily: "var(--font-sans)" }}
+          >
+            E-mail
+          </label>
+          <input
+            type="email"
+            value={newEmail}
+            onChange={(e) => setNewEmail(e.target.value)}
+            placeholder="student@email.cz"
+            required
+            disabled={isAdding}
+            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-current disabled:opacity-50"
+            style={{ fontFamily: "var(--font-sans)" }}
+          />
+        </div>
+        <label className="flex items-center gap-2 mb-2 cursor-pointer select-none text-sm text-muted-foreground" style={{ fontFamily: "var(--font-sans)" }}>
+          <input
+            type="checkbox"
+            checked={newIsAdmin}
+            onChange={(e) => setNewIsAdmin(e.target.checked)}
+            disabled={isAdding}
+            className="h-4 w-4 rounded"
+          />
+          Admin
+        </label>
+        <button
+          type="submit"
+          disabled={isAdding || !newEmail.trim()}
+          className="flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-bold uppercase tracking-wider text-white disabled:opacity-50"
+          style={{ fontFamily: "var(--font-sans)", background: "var(--czechitas-pink)" }}
+        >
+          <UserPlus className="h-4 w-4" />
+          {isAdding ? "Přidávám…" : "Přidat"}
+        </button>
+      </form>
+
+      {addError && (
+        <div className="mb-3 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          <AlertCircle className="h-4 w-4 shrink-0" /> {addError}
+        </div>
+      )}
+      {addSuccess && (
+        <div className="mb-3 flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
+          <CheckCircle className="h-4 w-4 shrink-0" /> {addSuccess}
+        </div>
+      )}
+
+      {/* CSV import */}
+      <div className="mb-5 border-t border-border pt-5">
+        <p
+          className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground"
+          style={{ fontFamily: "var(--font-sans)" }}
+        >
+          Hromadný import z CSV
+        </p>
+        <p className="mb-3 text-xs text-muted-foreground" style={{ fontFamily: "var(--font-sans)" }}>
+          Nahrajte CSV soubor s e-mailovými adresami (jeden na řádek nebo oddělené čárkou).
+        </p>
+        <label
+          className={`inline-flex cursor-pointer items-center gap-2 rounded-lg border border-border bg-background px-4 py-2 text-sm font-bold uppercase tracking-wider text-muted-foreground transition-colors hover:bg-secondary ${isCsvLoading ? "opacity-50 pointer-events-none" : ""}`}
+          style={{ fontFamily: "var(--font-sans)" }}
+        >
+          <Upload className="h-4 w-4" />
+          {isCsvLoading ? "Importuji…" : "Nahrát CSV"}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".csv,.txt"
+            className="hidden"
+            onChange={handleCsvUpload}
+            disabled={isCsvLoading}
+          />
+        </label>
+
+        {csvError && (
+          <div className="mt-3 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            <AlertCircle className="h-4 w-4 shrink-0" /> {csvError}
+          </div>
+        )}
+        {csvResult && (
+          <div className="mt-3 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700" style={{ fontFamily: "var(--font-sans)" }}>
+            Import dokončen: <strong>{csvResult.added}</strong> přidáno, <strong>{csvResult.skipped}</strong> přeskočeno (již existuje).
+          </div>
+        )}
+      </div>
+
+      {/* User list */}
+      <div className="border-t border-border pt-5">
+        <p
+          className="mb-3 text-xs font-bold uppercase tracking-wider text-muted-foreground"
+          style={{ fontFamily: "var(--font-sans)" }}
+        >
+          Registrovaní uživatelé ({users?.length ?? "…"})
+        </p>
+
+        {users === undefined ? (
+          <p className="text-sm text-muted-foreground" style={{ fontFamily: "var(--font-sans)" }}>
+            Načítám…
+          </p>
+        ) : users.length === 0 ? (
+          <p className="text-sm italic text-muted-foreground" style={{ fontFamily: "var(--font-sans)" }}>
+            Zatím žádní uživatelé.
+          </p>
+        ) : (
+          <ul className="space-y-2">
+            {users.map((u) => (
+              <li
+                key={u._id}
+                className="flex items-center justify-between gap-3 rounded-lg border border-border bg-background px-4 py-2.5"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <span
+                    className="truncate text-sm font-medium"
+                    style={{ fontFamily: "var(--font-sans)" }}
+                  >
+                    {u.email}
+                  </span>
+                  {u.isAdmin && (
+                    <span
+                      className="shrink-0 rounded-full px-2 py-0.5 text-xs font-bold text-white"
+                      style={{ background: "var(--czechitas-blue)", fontFamily: "var(--font-sans)" }}
+                    >
+                      Admin
+                    </span>
+                  )}
+                </div>
+                <button
+                  onClick={() => handleRemove(u._id)}
+                  className="shrink-0 text-muted-foreground hover:text-red-500 transition-colors"
+                  title="Odstranit uživatele"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
 }
 
 // ── Admin dashboard ───────────────────────────────────────────────
@@ -225,7 +504,6 @@ function AdminDashboard() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Top bar */}
       <div className="h-1 w-full" style={{ background: "var(--czechitas-pink)" }} />
 
       <div className="mx-auto max-w-2xl px-6 py-12">
@@ -245,13 +523,22 @@ function AdminDashboard() {
               Admin
             </h1>
           </div>
-          <button
-            onClick={() => void signOut()}
-            className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-muted-foreground hover:text-foreground"
-            style={{ fontFamily: "var(--font-sans)" }}
-          >
-            <LogOut className="h-3.5 w-3.5" /> Odhlásit
-          </button>
+          <div className="flex items-center gap-2">
+            <Link
+              href="/"
+              className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-muted-foreground hover:text-foreground"
+              style={{ fontFamily: "var(--font-sans)" }}
+            >
+              Zpět na obsah
+            </Link>
+            <button
+              onClick={() => void signOut()}
+              className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-muted-foreground hover:text-foreground"
+              style={{ fontFamily: "var(--font-sans)" }}
+            >
+              <LogOut className="h-3.5 w-3.5" /> Odhlásit
+            </button>
+          </div>
         </div>
 
         {/* Sync card */}
@@ -298,7 +585,6 @@ function AdminDashboard() {
             {syncing ? "Synchronizuji…" : "Synchronizovat z GitHubu"}
           </button>
 
-          {/* Live result of the current sync attempt */}
           {syncResult && (
             <div
               className={`mt-4 rounded-lg border px-4 py-3 text-sm ${
@@ -360,6 +646,9 @@ function AdminDashboard() {
             )}
           </div>
         )}
+
+        {/* User management */}
+        <UserManagement />
       </div>
     </div>
   );

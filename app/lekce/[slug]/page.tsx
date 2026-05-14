@@ -6,6 +6,7 @@ import { ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react';
 import type { Metadata } from 'next';
 
 import Navbar from '@/components/navbar';
+import AuthGuard from '@/components/auth-guard';
 import LectureContentLoader from '@/components/lecture-content-loader';
 import { getLectureBySlug, getPrevNextLectures, LECTURES } from '@/lib/lectures';
 
@@ -56,6 +57,7 @@ export default async function LecturePage({
   const availableNext = next ?? null;
 
   return (
+    <AuthGuard>
     <div className="min-h-screen bg-background">
       <Navbar />
 
@@ -162,5 +164,6 @@ export default async function LecturePage({
         </nav>
       </main>
     </div>
+    </AuthGuard>
   );
 }

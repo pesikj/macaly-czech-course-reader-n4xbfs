@@ -9,7 +9,9 @@
  */
 
 import type * as ResendOTP from "../ResendOTP.js";
+import type * as allowedUsers from "../allowedUsers.js";
 import type * as auth from "../auth.js";
+import type * as crons from "../crons.js";
 import type * as github from "../github.js";
 import type * as http from "../http.js";
 import type * as lectures from "../lectures.js";
@@ -24,7 +26,9 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   ResendOTP: typeof ResendOTP;
+  allowedUsers: typeof allowedUsers;
   auth: typeof auth;
+  crons: typeof crons;
   github: typeof github;
   http: typeof http;
   lectures: typeof lectures;
