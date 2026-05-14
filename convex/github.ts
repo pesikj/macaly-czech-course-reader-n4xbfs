@@ -34,12 +34,27 @@ async function fetchImageAsDataUri(imagePath: string, token: string, branch: str
     console.error(`Failed to fetch image ${imagePath}: ${res.status}`)
     return null
   }
-  const file = await res.json() as { content?: string; encoding?: string }
-  if (!file.content) return null
+  const file = await res.json() as { content?: string; encoding?: string; sha?: string; size?: number }
   const ext = imagePath.split(".").pop()?.toLowerCase() ?? "png"
   const mime = EXT_TO_MIME[ext] ?? "image/png"
-  const b64 = file.content.replace(/\n/g, "")
-  return `data:${mime};base64,${b64}`
+
+  // Files > 1 MB: content is empty, use Git Blobs API instead
+  if (!file.content && file.sha) {
+    const blobRes = await fetch(
+      `https://api.github.com/repos/${REPO}/git/blobs/${file.sha}`,
+      { headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" } }
+    )
+    if (!blobRes.ok) {
+      console.error(`Failed to fetch blob for ${imagePath}: ${blobRes.status}`)
+      return null
+    }
+    const blob = await blobRes.json() as { content?: string }
+    if (!blob.content) return null
+    return `data:${mime};base64,${blob.content.replace(/\n/g, "")}`
+  }
+
+  if (!file.content) return null
+  return `data:${mime};base64,${file.content.replace(/\n/g, "")}`
 }
 
 /** Replace relative image references with inline base64 data URIs */

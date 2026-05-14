@@ -22,7 +22,14 @@ export const getLectureContent = query({
       .unique()
     if (!doc) return null
     const url = doc.storageId ? await ctx.storage.getUrl(doc.storageId) : null
-    return { ...doc, url, markdown: doc.markdown ?? null }
+    return {
+      _id: doc._id,
+      _creationTime: doc._creationTime,
+      lectureId: doc.lectureId,
+      syncedAt: doc.syncedAt,
+      url,
+      markdown: doc.markdown ?? null,
+    }
   },
 })
 

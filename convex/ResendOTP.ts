@@ -40,7 +40,7 @@ export const ResendOTP = Email({
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: "Czech Course Reader <onboarding@resend.dev>",
+        from: "Czech Course Reader <noreply@czechitas-vibecoding.cz>",
         to: email,
         subject: "Your verification code",
         text: `Your verification code is: ${token}`,
