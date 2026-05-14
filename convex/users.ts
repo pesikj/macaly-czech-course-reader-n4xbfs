@@ -33,8 +33,17 @@ export const isAdmin = query({
     if (!userId) return false
     const user = await ctx.db.get(userId)
     if (!user?.email) return false
+    const email = user.email.toLowerCase()
+
+    // Always grant admin if matches ADMIN_EMAIL env var
     const adminEmail = process.env.ADMIN_EMAIL
-    if (!adminEmail) return false
-    return user.email.toLowerCase() === adminEmail.toLowerCase()
+    if (adminEmail && email === adminEmail.toLowerCase()) return true
+
+    // Otherwise check allowedUsers table
+    const entry = await ctx.db
+      .query("allowedUsers")
+      .withIndex("by_email", (q) => q.eq("email", email))
+      .unique()
+    return entry?.isAdmin === true
   },
 })
