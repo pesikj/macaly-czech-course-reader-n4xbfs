@@ -8,11 +8,9 @@ import type { Metadata } from 'next';
 import Navbar from '@/components/navbar';
 import AuthGuard from '@/components/auth-guard';
 import LectureContentLoader from '@/components/lecture-content-loader';
-import { getLectureBySlug, getPrevNextLectures, LECTURES } from '@/lib/lectures';
+import { getLectureBySlug, getPrevNextLectures } from '@/lib/lectures';
 
-export async function generateStaticParams() {
-  return LECTURES.map((l) => ({ slug: l.slug }));
-}
+export const dynamic = "force-dynamic";
 
 export async function generateMetadata({
   params,
