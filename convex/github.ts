@@ -135,6 +135,28 @@ export const syncFromGithub = action({
 
         await ctx.runAction(internal.lectures.upsertLectureContent, { lectureId: adresar, markdown })
         synced++
+
+        // Try to sync activities.json (reflection questions) — optional, no error on missing
+        const activitiesPath = `${adresar}/activities.json`
+        const activitiesRes = await githubFetch(activitiesPath, token, branch)
+        if (activitiesRes.ok) {
+          try {
+            const activitiesFile = await activitiesRes.json() as { content: string }
+            const activitiesData = JSON.parse(decodeBase64(activitiesFile.content)) as {
+              reflection_board?: { questions?: Array<{ id: string; question: string }> }
+            }
+            const questions = activitiesData?.reflection_board?.questions ?? []
+            if (questions.length > 0) {
+              await ctx.runMutation(internal.reflections.upsertReflectionQuestions, {
+                lectureId: adresar,
+                questions,
+              })
+              console.log(`Synced ${questions.length} reflection questions for ${adresar}`)
+            }
+          } catch (e) {
+            console.warn(`Failed to parse activities.json for ${adresar}:`, e)
+          }
+        }
       }
 
       const status = errors.length === 0 ? "success" : "error"
