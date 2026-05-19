@@ -39,6 +39,8 @@ type Comment = {
   isOwn: boolean;
 };
 
+type SubmissionVisibility = "public" | "anonymous" | "private";
+
 type Submission = {
   _id: Id<"taskSubmissions">;
   taskId: string;
@@ -50,6 +52,7 @@ type Submission = {
   heartCount: number;
   hasHearted: boolean;
   isOwn: boolean;
+  visibility: SubmissionVisibility;
   comments: Comment[];
 };
 
@@ -245,6 +248,12 @@ function SolutionCard({
 
 // ── Submission form ───────────────────────────────────────────────
 
+const VISIBILITY_OPTIONS: { value: SubmissionVisibility; label: string; description: string }[] = [
+  { value: "public", label: "Veřejně s mým jménem", description: "Ostatní uvidí vaše řešení i jméno." },
+  { value: "anonymous", label: "Anonymně", description: "Ostatní uvidí vaše řešení, ale ne vaše jméno." },
+  { value: "private", label: "Soukromě", description: "Řešení vidíte jen vy a lektor." },
+];
+
 function SubmissionForm({
   task,
   existingSubmission,
@@ -265,6 +274,9 @@ function SubmissionForm({
   }
 
   const [fieldValues, setFieldValues] = useState<Record<string, string>>(initialFields);
+  const [visibility, setVisibility] = useState<SubmissionVisibility>(
+    existingSubmission?.visibility ?? "public"
+  );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -290,6 +302,7 @@ function SubmissionForm({
           fieldId: f.id,
           value: fieldValues[f.id] ?? "",
         })),
+        visibility,
       });
       onCancel?.();
     } catch (err) {
@@ -337,6 +350,36 @@ function SubmissionForm({
           )}
         </div>
       ))}
+
+      <div className="space-y-1.5">
+        <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground" style={{ fontFamily: "var(--font-sans)" }}>
+          Viditelnost řešení
+        </p>
+        {VISIBILITY_OPTIONS.map((opt) => (
+          <label
+            key={opt.value}
+            className={`flex cursor-pointer items-start gap-2.5 rounded-lg border px-3 py-2.5 transition-colors ${
+              visibility === opt.value
+                ? "border-current bg-muted"
+                : "border-border bg-background hover:bg-muted/50"
+            }`}
+            style={{ fontFamily: "var(--font-sans)" }}
+          >
+            <input
+              type="radio"
+              name="visibility"
+              value={opt.value}
+              checked={visibility === opt.value}
+              onChange={() => setVisibility(opt.value)}
+              className="mt-0.5 shrink-0 accent-[var(--czechitas-blue)]"
+            />
+            <span>
+              <span className="block text-xs font-bold text-foreground">{opt.label}</span>
+              <span className="block text-xs text-muted-foreground">{opt.description}</span>
+            </span>
+          </label>
+        ))}
+      </div>
 
       {error && (
         <p className="text-xs text-red-600" style={{ fontFamily: "var(--font-sans)" }}>
@@ -405,8 +448,21 @@ function TaskCard({
         <div className="border-t border-border pt-5">
           {task.mySubmission && !editing ? (
             <div>
-              <div className="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                Moje řešení
+              <div className="mb-2 flex items-center justify-between gap-1.5 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                <span>Moje řešení</span>
+                <span className="inline-flex items-center gap-2">
+                  <span className="rounded-full border border-border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                    {task.mySubmission.visibility === "anonymous"
+                      ? "Anonymně"
+                      : task.mySubmission.visibility === "private"
+                      ? "Soukromě"
+                      : "Veřejně"}
+                  </span>
+                  <span className="inline-flex items-center gap-1 text-muted-foreground/60">
+                    <Heart className="h-3.5 w-3.5" />
+                    {task.mySubmission.heartCount}
+                  </span>
+                </span>
               </div>
               <div className="space-y-3 rounded-lg border border-border bg-background px-4 py-3">
                 {task.solutionFields.map((field) => {
@@ -433,6 +489,11 @@ function TaskCard({
                     </div>
                   );
                 })}
+                <CommentSection
+                  submissionId={task.mySubmission._id}
+                  comments={task.mySubmission.comments}
+                  defaultDisplayName={defaultDisplayName}
+                />
               </div>
               <button
                 onClick={() => setEditing(true)}

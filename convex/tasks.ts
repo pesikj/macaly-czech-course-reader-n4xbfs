@@ -147,8 +147,16 @@ export const getTaskWithSubmissions = query({
       .order("asc")
       .collect()
 
+    const isAdm = await checkAdmin(ctx)
+
     const enrichedSubmissions = await Promise.all(
       submissions.map(async (s) => {
+        const isOwn = s.userId === userId
+        const visibility = s.visibility ?? "public"
+
+        // Hide private submissions from everyone except the owner and admins
+        if (visibility === "private" && !isOwn && !isAdm) return null
+
         const hearts = await ctx.db
           .query("taskHearts")
           .withIndex("by_submissionId", (q) => q.eq("submissionId", s._id))
@@ -162,16 +170,19 @@ export const getTaskWithSubmissions = query({
           .order("asc")
           .collect()
 
+        const displayName = (!isOwn && !isAdm && visibility === "anonymous") ? "Anonymní" : s.displayName
+
         return {
           _id: s._id,
           taskId: s.taskId,
           lectureId: s.lectureId,
-          displayName: s.displayName,
-          fields: (task.shareSolution || s.userId === userId) ? s.fields : [],
+          displayName,
+          visibility,
+          fields: (task.shareSolution || isOwn || isAdm) ? s.fields : [],
           submittedAt: s.submittedAt,
           heartCount: hearts.length,
           hasHearted: !!myHeart,
-          isOwn: s.userId === userId,
+          isOwn,
           comments: comments.map((c) => ({
             _id: c._id,
             displayName: c.displayName,
@@ -183,7 +194,8 @@ export const getTaskWithSubmissions = query({
       })
     )
 
-    const mySubmission = enrichedSubmissions.find((s) => s.isOwn) ?? null
+    const filtered = enrichedSubmissions.filter((s) => s !== null)
+    const mySubmission = filtered.find((s) => s.isOwn) ?? null
 
     return {
       _id: task._id,
@@ -195,7 +207,7 @@ export const getTaskWithSubmissions = query({
       shareSolution: task.shareSolution,
       solutionFields: task.solutionFields,
       mySubmission,
-      submissions: enrichedSubmissions,
+      submissions: filtered,
     }
   },
 })
@@ -214,8 +226,9 @@ export const submitSolution = mutation({
         value: v.string(),
       })
     ),
+    visibility: v.union(v.literal("public"), v.literal("anonymous"), v.literal("private")),
   },
-  handler: async (ctx, { taskId, lectureId, displayName, fields }) => {
+  handler: async (ctx, { taskId, lectureId, displayName, fields, visibility }) => {
     const userId = await getAuthUserId(ctx)
     if (!userId) throw new Error("Nejste přihlášeni.")
 
@@ -246,6 +259,7 @@ export const submitSolution = mutation({
       displayName: displayName.trim(),
       fields,
       submittedAt: Date.now(),
+      visibility,
     }
 
     if (existing) {

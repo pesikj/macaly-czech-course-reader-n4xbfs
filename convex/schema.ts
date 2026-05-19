@@ -89,6 +89,7 @@ export default defineSchema({
       })
     ),
     submittedAt: v.number(),
+    visibility: v.optional(v.union(v.literal("public"), v.literal("anonymous"), v.literal("private"))),
   })
     .index("by_taskId", ["taskId"])
     .index("by_userId_taskId", ["userId", "taskId"]),
