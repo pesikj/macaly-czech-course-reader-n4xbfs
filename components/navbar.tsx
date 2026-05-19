@@ -1,11 +1,12 @@
 "use client"
 
+import { useState } from "react"
 import Link from "next/link"
-import { useQuery } from "convex/react"
+import { useQuery, useMutation } from "convex/react"
 import { useAuthActions } from "@convex-dev/auth/react"
 import { Authenticated, Unauthenticated } from "convex/react"
 import { api } from "@/convex/_generated/api"
-import { LogOut } from "lucide-react"
+import { LogOut, Pencil, Check, X } from "lucide-react"
 
 function AdminNavButton() {
   const isAdmin = useQuery(api.users.isAdmin)
@@ -21,19 +22,75 @@ function AdminNavButton() {
   )
 }
 
+function DisplayNameEditor() {
+  const displayName = useQuery(api.users.getMyDisplayName)
+  const setDisplayName = useMutation(api.users.setDisplayName)
+  const [editing, setEditing] = useState(false)
+  const [value, setValue] = useState("")
+  const [saving, setSaving] = useState(false)
+
+  const startEdit = () => {
+    setValue(displayName ?? "")
+    setEditing(true)
+  }
+
+  const save = async () => {
+    if (!value.trim()) return
+    setSaving(true)
+    try {
+      await setDisplayName({ displayName: value })
+      setEditing(false)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const cancel = () => setEditing(false)
+
+  if (displayName === undefined) return null
+
+  if (editing) {
+    return (
+      <div className="hidden sm:flex items-center gap-1">
+        <input
+          autoFocus
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") void save(); if (e.key === "Escape") cancel() }}
+          disabled={saving}
+          className="rounded border border-border bg-background px-2 py-0.5 text-xs outline-none focus:border-current w-32"
+          style={{ fontFamily: "var(--font-sans)" }}
+        />
+        <button onClick={() => void save()} disabled={saving || !value.trim()} className="text-muted-foreground hover:text-foreground transition-colors">
+          <Check className="h-3.5 w-3.5" />
+        </button>
+        <button onClick={cancel} disabled={saving} className="text-muted-foreground hover:text-foreground transition-colors">
+          <X className="h-3.5 w-3.5" />
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <button
+      onClick={startEdit}
+      className="hidden sm:inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors group"
+      style={{ fontFamily: "var(--font-sans)" }}
+      title="Upravit zobrazované jméno"
+    >
+      {displayName}
+      <Pencil className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+    </button>
+  )
+}
+
 function NavbarAuth() {
   const { signOut } = useAuthActions()
-  const user = useQuery(api.users.currentLoggedInUser)
 
   return (
     <>
       <Authenticated>
-        <span
-          className="hidden sm:inline text-xs text-muted-foreground"
-          style={{ fontFamily: "var(--font-sans)" }}
-        >
-          {user?.email ?? ""}
-        </span>
+        <DisplayNameEditor />
         <button
           onClick={() => void signOut()}
           className="flex items-center gap-1.5 rounded px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"

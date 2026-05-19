@@ -2,12 +2,13 @@ import fs from 'fs';
 import path from 'path';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import type { Metadata } from 'next';
 
 import Navbar from '@/components/navbar';
 import AuthGuard from '@/components/auth-guard';
 import LectureContentLoader from '@/components/lecture-content-loader';
+import LectureActivityNav from '@/components/lecture-activity-nav';
 import { getLectureBySlug, getPrevNextLectures, LECTURES } from '@/lib/lectures';
 
 export async function generateStaticParams() {
@@ -65,17 +66,7 @@ export default async function LecturePage({
       <div className="h-1 w-full" style={{ background: 'var(--czechitas-pink)' }} />
 
       <main className="mx-auto max-w-3xl px-6 pb-24 pt-10">
-        {/* Back link */}
-        <div className="mb-8">
-          <Link
-            href="/"
-            className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground"
-            style={{ fontFamily: 'var(--font-sans)' }}
-          >
-            <ArrowLeft className="h-3.5 w-3.5" />
-            Zpět na přehled
-          </Link>
-        </div>
+        <LectureActivityNav lectureId={lecture.id} slug={slug} current="text" />
 
         {/* Lecture header */}
         <header className="mb-10 pb-7" style={{ borderBottom: '2px solid var(--czechitas-pink)' }}>

@@ -1,8 +1,7 @@
 "use client"
 
-import { Authenticated, Unauthenticated, AuthLoading, useQuery } from "convex/react"
+import { Authenticated, Unauthenticated, AuthLoading } from "convex/react"
 import { useAuthActions } from "@convex-dev/auth/react"
-import { api } from "@/convex/_generated/api"
 import { useState, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { AlertCircle } from "lucide-react"
@@ -13,10 +12,6 @@ function SignInForm() {
   const [email, setEmail] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
-  const checkAllowed = useQuery(
-    api.allowedUsers.checkEmailAllowed,
-    step === "email" && email.trim().length > 3 ? { email } : "skip"
-  )
 
   const handleEmailSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -25,18 +20,6 @@ function SignInForm() {
     try {
       const formData = new FormData(e.currentTarget)
       const enteredEmail = (formData.get("email") as string).trim().toLowerCase()
-
-      // Check whitelist before sending OTP
-      const allowed = await new Promise<boolean>((resolve) => {
-        // Re-use checkEmailAllowed result if available, otherwise fetch inline
-        resolve(checkAllowed ?? true) // if query hasn't loaded yet, let Convex decide
-      })
-      if (!allowed) {
-        setError("Tento e-mail není registrován. Obraťte se na správce kurzu.")
-        setIsLoading(false)
-        return
-      }
-
       setEmail(enteredEmail)
       formData.set("email", enteredEmail)
       await signIn("resend-otp", formData)
