@@ -33,4 +33,26 @@ export default defineSchema({
     message: v.optional(v.string()),
     lecturesSynced: v.optional(v.number()),
   }),
+
+  reflectionQuestions: defineTable({
+    lectureId: v.string(),
+    questionId: v.string(),
+    question: v.string(),
+    isOpen: v.boolean(),
+    syncedAt: v.number(),
+  })
+    .index("by_lectureId", ["lectureId"])
+    .index("by_questionId", ["questionId"]),
+
+  reflectionAnswers: defineTable({
+    questionId: v.string(),
+    lectureId: v.string(),
+    userId: v.id("users"),
+    answer: v.string(),
+    isAnonymous: v.boolean(),
+    displayName: v.optional(v.string()),
+    submittedAt: v.number(),
+  })
+    .index("by_questionId", ["questionId"])
+    .index("by_userId_questionId", ["userId", "questionId"]),
 })

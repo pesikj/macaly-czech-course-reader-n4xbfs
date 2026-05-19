@@ -1,74 +1,69 @@
-# GitHub Content Sync + Admin Section
+# Cohort Reflection Board
 
-## Overview
+## Co se postaví
 
-Add a feature that pulls lecture content from the private GitHub repository and stores it in a database. A protected admin page lets you trigger the sync with a button. The rest of the course reader then serves content from the database instead of local files.
-
----
-
-## How it will work
-
-1. **Admin signs in** at `/admin` using their email + a one-time code
-2. The system checks whether the signed-in email matches `ADMIN_EMAIL`
-3. Admin clicks **"Synchronizovat z GitHubu"** — the app fetches `lectures.json` from the repo, then fetches each lecture's `.md` file and stores it
-4. Image URLs in the markdown are automatically rewritten to point to GitHub's raw CDN so they load correctly
-5. Lecture detail pages read content from the database (falling back to local files if not yet synced)
+Interaktivní nástěnka pro reflexi na živých lekcích — studenti anonymně nebo jmenovitě odpovídají na otázky, lektor vidí odpovědi na sdílené obrazovce.
 
 ---
 
-## Implementation steps
+## Jak to bude fungovat
 
-### 1. Provision Convex database
-- Run the `setup-convex-db` skill to create the database and wrap the app layout
+### Pro studenty (stránka lekce `/lekce/[slug]`)
+- Na konci lekce se zobrazí sekce „Reflexe" s otevřenými otázkami
+- Student napíše odpověď a zvolí: *zobrazit jméno* nebo *anonymně*
+- Každý může odeslat jednu odpověď na otázku (lze ji upravit, dokud je otevřená)
+- Po odeslání se zobrazí potvrzení
 
-### 2. Database schema (`convex/schema.ts`)
-Add two tables:
-- `users` — for OTP authentication (email index)
-- `lectureContents` — stores `{ lectureId, markdown, syncedAt }` with an index on `lectureId`
+### Pro lektora/admina (`/admin` + nová stránka)
+- Nová sekce **Reflexe** v admin panelu — seznam všech otázek ze všech lekcí
+- Tlačítko **Otevřít / Zavřít** u každé otázky (studenti vidí jen otevřené)
+- Odkaz na **Diskuzní pohled** — čistá stránka vhodná pro sdílení obrazovky
+- Diskuzní pohled (`/admin/reflexe/[id]`) zobrazuje otázku a všechny odpovědi v přehledném layoutu (automaticky se aktualizuje)
 
-### 3. GitHub sync action (`convex/github.ts`)
-A Convex action callable from the admin panel:
-- Reads `lectures.json` from the repo root via GitHub API (using `GITHUB_TOKEN`)
-- For each entry `lecture_id → directory`, fetches `{directory}/lekce-{lecture_id}.md`
-- Rewrites relative image URLs to `https://raw.githubusercontent.com/pesikj/vibecoding-macaly-course/main/{directory}/{image}`
-- Upserts each lecture into the `lectureContents` table
-
-### 4. Convex queries/mutations (`convex/lectures.ts`, `convex/users.ts`)
-- `getLectureContent(lectureId)` — fetch stored markdown by lecture ID
-- `currentUser` — get signed-in user's email
-- `isAdmin` — check if current user email matches `ADMIN_EMAIL` env var (set in Convex)
-
-### 5. Admin page (`/app/admin/page.tsx` + `/components/admin-content.tsx`)
-- OTP sign-in form (email → 6-digit code)
-- After sign-in: check admin email — if mismatch, show "Přístup odepřen"
-- If admin: show sync button, last sync timestamp, per-lecture sync status
-
-### 6. Update lecture detail page
-- Try to load markdown from Convex first (by `lecture.order` matching `lecture_id`)
-- Fall back to local `.md` file if not yet synced
+### Odkud přicházejí otázky
+- Z Git repozitáře — soubor `activities.json` v adresáři každé lekce
+- Formát (jako je ukázán):
+  ```json
+  { "reflection_board": { "questions": [{ "id": "l1-r1", "question": "Co tě překvapilo?" }] } }
+  ```
+- Synchronizace probíhá spolu s existující synchronizací Markdown obsahu (tlačítko Sync v adminu)
+- Nové otázky se přidají, existující se nesmažou (aby se zachovaly odpovědi)
 
 ---
 
-## Environment variables needed
-- `GITHUB_TOKEN` — already added to secrets ✓
-- `ADMIN_EMAIL` — needs to be set in **Convex** environment variables (separate from Next.js secrets)
+## Implementační kroky
+
+1. **Databáze** — přidat 2 nové tabulky do Convexu:
+   - `reflectionQuestions` (id otázky, text, lekce, je-li otevřená)
+   - `reflectionAnswers` (odpověď, uživatel, anonymita, čas)
+
+2. **Backend** — nový soubor `convex/reflections.ts` s dotazy a mutacemi (zobrazit otázky, odeslat odpověď, přepnout otevřenou/zavřenou, zobrazit odpovědi)
+
+3. **GitHub sync** — rozšířit existující sync v `convex/github.ts` o načtení `activities.json` z každého adresáře lekce
+
+4. **UI pro studenty** — nová komponenta `components/reflection-board.tsx` integrovaná do stránky lekce
+
+5. **Admin sekce** — přidat správu reflexí do `components/admin-page-content.tsx`
+
+6. **Diskuzní pohled** — nová stránka `/admin/reflexe/[id]` s čistým layoutem pro sdílení obrazovky
 
 ---
 
-## No-gos
-- Will **not** change the lecture list structure in `lib/lectures.ts` — titles/order stay managed there
-- Will **not** implement any CMS or content editor
-- Will **not** auto-sync on a schedule — sync is always manual via the admin button
-- Will **not** expose `ADMIN_EMAIL` or `GITHUB_TOKEN` to the browser
-- Will **not** add login to the public course reader — only the `/admin` route is protected
+## Co se NEBUDE dělat (no-gos)
+
+- ❌ Žádné hlasování ani lajky — reflexe není soutěž
+- ❌ Žádné mazání odpovědí adminem (zachování psychologické bezpečnosti)
+- ❌ Žádné notifikace e-mailem při nové odpovědi
+- ❌ Žádné „bodové hodnocení" ani pořadí odpovědí
 
 ---
 
-## Todos
-- [ ] Provision Convex database and wrap layout
-- [ ] Update schema with `users` + `lectureContents` tables
-- [ ] Create GitHub sync action in Convex
-- [ ] Create lecture content queries and admin check
-- [ ] Build admin page with OTP sign-in
-- [ ] Update lecture detail page to read from Convex
-- [ ] Set ADMIN_EMAIL in Convex environment variables
+## Technické detaily
+
+- Nové tabulky v `convex/schema.ts`
+- Backend logika v `convex/reflections.ts`
+- Sync rozšíření v `convex/github.ts`
+- Student UI: `components/reflection-board.tsx` → do `components/lecture-page-content.tsx`
+- Admin UI: rozšíření `components/admin-page-content.tsx`
+- Diskuzní pohled (server shell): `app/admin/reflexe/[id]/page.tsx`
+- Diskuzní pohled (client): `components/discussion-view-content.tsx`

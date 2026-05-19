@@ -8,6 +8,7 @@ import type { Metadata } from 'next';
 import Navbar from '@/components/navbar';
 import AuthGuard from '@/components/auth-guard';
 import LectureContentLoader from '@/components/lecture-content-loader';
+import ReflectionBoard from '@/components/reflection-board';
 import { getLectureBySlug, getPrevNextLectures, LECTURES } from '@/lib/lectures';
 
 export async function generateStaticParams() {
@@ -103,6 +104,9 @@ export default async function LecturePage({
         <article>
           <LectureContentLoader lectureId={lecture.id} fallbackContent={markdownContent} />
         </article>
+
+        {/* Reflection board — shows open reflection questions */}
+        <ReflectionBoard lectureId={lecture.id} />
 
         {/* Prev / Next */}
         <nav

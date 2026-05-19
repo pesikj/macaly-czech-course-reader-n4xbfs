@@ -23,6 +23,10 @@ import {
   Trash2,
   Upload,
   Users,
+  MessageSquare,
+  ExternalLink,
+  Unlock,
+  Lock,
 } from "lucide-react";
 import type { Id } from "@/convex/_generated/dataModel";
 
@@ -447,6 +451,146 @@ function UserManagement() {
   );
 }
 
+// ── Reflection management ─────────────────────────────────────────
+
+function ReflectionManagement() {
+  const questions = useQuery(api.reflections.listAllQuestions);
+  const toggleQuestion = useMutation(api.reflections.toggleQuestion);
+  const [toggling, setToggling] = useState<string | null>(null);
+
+  const handleToggle = async (id: Id<"reflectionQuestions">) => {
+    setToggling(id);
+    try {
+      await toggleQuestion({ id });
+    } catch (err) {
+      alert(String(err));
+    } finally {
+      setToggling(null);
+    }
+  };
+
+  // Group questions by lectureId
+  const grouped: Record<string, NonNullable<typeof questions>> = {};
+  if (questions) {
+    for (const q of questions) {
+      if (!grouped[q.lectureId]) grouped[q.lectureId] = [];
+      grouped[q.lectureId].push(q);
+    }
+  }
+
+  return (
+    <div className="mt-6 rounded-xl border border-border bg-card p-6 shadow-sm">
+      <div className="mb-5 flex items-center gap-2">
+        <MessageSquare className="h-5 w-5" style={{ color: "var(--czechitas-blue)" }} />
+        <h2
+          className="text-lg font-black uppercase tracking-tight"
+          style={{ fontFamily: "var(--font-sans)", color: "var(--czechitas-blue)" }}
+        >
+          Reflexe
+        </h2>
+      </div>
+
+      <p className="mb-5 text-sm text-muted-foreground" style={{ fontFamily: "var(--font-sans)" }}>
+        Otázky se synchronizují z&nbsp;GitHub repozitáře (soubor{" "}
+        <code className="rounded bg-muted px-1 py-0.5 text-xs font-mono">activities.json</code>
+        {" "}v adresáři každé lekce). Pomocí tlačítek otevřete nebo zavřete sběr odpovědí.
+      </p>
+
+      {questions === undefined && (
+        <p className="text-sm text-muted-foreground" style={{ fontFamily: "var(--font-sans)" }}>
+          Načítám…
+        </p>
+      )}
+
+      {questions !== null && questions !== undefined && questions.length === 0 && (
+        <p className="text-sm italic text-muted-foreground" style={{ fontFamily: "var(--font-sans)" }}>
+          Zatím žádné otázky. Proveďte synchronizaci z&nbsp;GitHubu.
+        </p>
+      )}
+
+      {questions === null && (
+        <p className="text-sm text-red-600" style={{ fontFamily: "var(--font-sans)" }}>
+          Nemáte oprávnění zobrazit reflexe.
+        </p>
+      )}
+
+      {questions && questions.length > 0 && (
+        <div className="space-y-6">
+          {Object.entries(grouped).map(([lectureId, qs]) => (
+            <div key={lectureId}>
+              <p
+                className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground"
+                style={{ fontFamily: "var(--font-sans)" }}
+              >
+                {lectureId}
+              </p>
+              <ul className="space-y-2">
+                {qs.map((q) => (
+                  <li
+                    key={q._id}
+                    className="flex items-start justify-between gap-3 rounded-lg border border-border bg-background px-4 py-3"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p
+                        className="text-sm font-medium leading-snug text-foreground"
+                        style={{ fontFamily: "var(--font-sans)" }}
+                      >
+                        {q.question}
+                      </p>
+                      <p
+                        className="mt-0.5 text-xs text-muted-foreground"
+                        style={{ fontFamily: "var(--font-sans)" }}
+                      >
+                        {q.answerCount} {q.answerCount === 1 ? "odpověď" : q.answerCount >= 2 && q.answerCount <= 4 ? "odpovědi" : "odpovědí"}
+                        {" · "}
+                        <span
+                          style={{ color: q.isOpen ? "var(--czechitas-pink)" : undefined }}
+                          className={q.isOpen ? "font-bold" : ""}
+                        >
+                          {q.isOpen ? "Otevřená" : "Zavřená"}
+                        </span>
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      {q.answerCount > 0 && (
+                        <Link
+                          href={`/admin/reflexe/${q._id}`}
+                          className="flex items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-xs font-bold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
+                          style={{ fontFamily: "var(--font-sans)" }}
+                          title="Otevřít diskuzní pohled"
+                        >
+                          <ExternalLink className="h-3.5 w-3.5" />
+                          Diskuze
+                        </Link>
+                      )}
+                      <button
+                        onClick={() => handleToggle(q._id as Id<"reflectionQuestions">)}
+                        disabled={toggling === q._id}
+                        className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-white disabled:opacity-50 transition-opacity"
+                        style={{
+                          fontFamily: "var(--font-sans)",
+                          background: q.isOpen ? "var(--czechitas-blue)" : "var(--czechitas-pink)",
+                        }}
+                        title={q.isOpen ? "Zavřít sběr odpovědí" : "Otevřít sběr odpovědí"}
+                      >
+                        {q.isOpen ? (
+                          <><Lock className="h-3.5 w-3.5" /> Zavřít</>
+                        ) : (
+                          <><Unlock className="h-3.5 w-3.5" /> Otevřít</>
+                        )}
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Admin dashboard ───────────────────────────────────────────────
 
 function AdminDashboard() {
@@ -649,6 +793,9 @@ function AdminDashboard() {
 
         {/* User management */}
         <UserManagement />
+
+        {/* Reflection management */}
+        <ReflectionManagement />
       </div>
     </div>
   );
