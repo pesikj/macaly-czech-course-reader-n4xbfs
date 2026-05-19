@@ -20,6 +20,7 @@ type Answer = {
 function QuestionCard({
   q,
   lectureId,
+  myDisplayName,
 }: {
   q: {
     _id: string;
@@ -29,12 +30,12 @@ function QuestionCard({
     answers: Answer[];
   };
   lectureId: string;
+  myDisplayName: string;
 }) {
   const submitAnswer = useMutation(api.reflections.submitAnswer);
 
   const [answer, setAnswer] = useState(q.myAnswer?.answer ?? "");
   const [isAnonymous, setIsAnonymous] = useState(q.myAnswer?.isAnonymous ?? true);
-  const [displayName, setDisplayName] = useState(q.myAnswer?.displayName ?? "");
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(!!q.myAnswer);
   const [editing, setEditing] = useState(false);
@@ -53,7 +54,7 @@ function QuestionCard({
         lectureId,
         answer,
         isAnonymous,
-        displayName: isAnonymous ? undefined : displayName || undefined,
+        displayName: isAnonymous ? undefined : myDisplayName || undefined,
       });
       console.log("Reflection answer submitted for", q.questionId);
       setSubmitted(true);
@@ -91,7 +92,7 @@ function QuestionCard({
               <p className="mt-1 text-xs text-muted-foreground">
                 {isAnonymous
                   ? "Zobrazuje se anonymně"
-                  : `Zobrazuje se jako: ${displayName || "bez jména"}`}
+                  : `Zobrazuje se jako: ${myDisplayName || "bez jména"}`}
               </p>
             </div>
           </div>
@@ -140,18 +141,6 @@ function QuestionCard({
                 Zobrazit jméno
               </label>
             </div>
-
-            {!isAnonymous && (
-              <input
-                type="text"
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-                placeholder="Vaše jméno"
-                disabled={submitting}
-                className="rounded-lg border border-border bg-background px-3 py-1.5 text-xs outline-none focus:border-current disabled:opacity-50 w-36"
-                style={{ fontFamily: "var(--font-sans)" }}
-              />
-            )}
 
             <button
               type="submit"
@@ -205,6 +194,7 @@ function QuestionCard({
 
 export default function ReflectionBoard({ lectureId }: Props) {
   const questions = useQuery(api.reflections.getOpenQuestionsForLecture, { lectureId });
+  const myDisplayName = useQuery(api.users.getMyDisplayName) ?? "";
 
   // Don't render anything while loading or if no open questions
   if (questions === undefined) return null;
@@ -231,7 +221,7 @@ export default function ReflectionBoard({ lectureId }: Props) {
 
       <div className="space-y-4">
         {questions.map((q) => (
-          <QuestionCard key={q._id} q={q as Parameters<typeof QuestionCard>[0]["q"]} lectureId={lectureId} />
+          <QuestionCard key={q._id} q={q as Parameters<typeof QuestionCard>[0]["q"]} lectureId={lectureId} myDisplayName={myDisplayName} />
         ))}
       </div>
     </section>

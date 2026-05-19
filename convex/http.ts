@@ -13,11 +13,26 @@ auth.addHttpRoutes(http)
 http.route({
   path: "/image",
   method: "GET",
-  handler: httpAction(async (_ctx, request) => {
+  handler: httpAction(async (ctx, request) => {
+    const identity = await ctx.auth.getUserIdentity()
+    if (!identity) {
+      return new Response("Unauthorized", { status: 401 })
+    }
+
     const url = new URL(request.url)
     const imagePath = url.searchParams.get("path")
     if (!imagePath) {
       return new Response("Missing path parameter", { status: 400 })
+    }
+
+    // Reject path traversal and non-image files
+    if (imagePath.includes("..") || imagePath.includes("//")) {
+      return new Response("Invalid path", { status: 400 })
+    }
+    const allowedImageExts = new Set(["png", "jpg", "jpeg", "gif", "svg", "webp"])
+    const reqExt = imagePath.split(".").pop()?.toLowerCase() ?? ""
+    if (!allowedImageExts.has(reqExt)) {
+      return new Response("Invalid file type", { status: 400 })
     }
 
     const token = process.env.GITHUB_TOKEN
@@ -49,13 +64,15 @@ http.route({
     }
     const contentType = contentTypeMap[ext] ?? "image/png"
 
-    return new Response(imageData, {
-      headers: {
-        "Content-Type": contentType,
-        "Cache-Control": "public, max-age=86400",
-        "Access-Control-Allow-Origin": "*",
-      },
-    })
+    const responseHeaders: Record<string, string> = {
+      "Content-Type": contentType,
+      "Cache-Control": "public, max-age=86400",
+    }
+    if (ext === "svg") {
+      responseHeaders["Content-Security-Policy"] = "sandbox"
+    }
+
+    return new Response(imageData, { headers: responseHeaders })
   }),
 })
 

@@ -80,7 +80,6 @@ function CommentSection({
   const addComment = useMutation(api.tasks.addComment);
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
-  const [displayName, setDisplayName] = useState(defaultDisplayName);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -90,7 +89,7 @@ function CommentSection({
     if (!text.trim()) return;
     setSubmitting(true);
     try {
-      await addComment({ submissionId, displayName, text });
+      await addComment({ submissionId, displayName: defaultDisplayName, text });
       setText("");
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -129,16 +128,6 @@ function CommentSection({
           )}
 
           <form onSubmit={handleSubmit} className="space-y-2">
-            <input
-              type="text"
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              placeholder="Vaše jméno"
-              required
-              disabled={submitting}
-              className="w-full rounded-lg border border-border bg-background px-3 py-1.5 text-xs outline-none focus:border-current disabled:opacity-50"
-              style={{ fontFamily: "var(--font-sans)" }}
-            />
             <div className="flex gap-2">
               <input
                 type="text"
@@ -151,7 +140,7 @@ function CommentSection({
               />
               <button
                 type="submit"
-                disabled={submitting || !text.trim() || !displayName.trim()}
+                disabled={submitting || !text.trim()}
                 className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-white disabled:opacity-50"
                 style={{ background: "var(--czechitas-blue)", fontFamily: "var(--font-sans)" }}
               >
@@ -275,9 +264,6 @@ function SubmissionForm({
       existingSubmission?.fields.find((f) => f.fieldId === field.id)?.value ?? "";
   }
 
-  const [displayName, setDisplayName] = useState(
-    existingSubmission?.displayName ?? defaultDisplayName
-  );
   const [fieldValues, setFieldValues] = useState<Record<string, string>>(initialFields);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -299,7 +285,7 @@ function SubmissionForm({
       await submitSolution({
         taskId: task.taskId,
         lectureId: task.lectureId,
-        displayName,
+        displayName: defaultDisplayName,
         fields: task.solutionFields.map((f) => ({
           fieldId: f.id,
           value: fieldValues[f.id] ?? "",
@@ -315,25 +301,6 @@ function SubmissionForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <div>
-        <label
-          className="mb-1 block text-xs font-bold uppercase tracking-wider text-muted-foreground"
-          style={{ fontFamily: "var(--font-sans)" }}
-        >
-          Vaše jméno <span className="text-red-500">*</span>
-        </label>
-        <input
-          type="text"
-          value={displayName}
-          onChange={(e) => setDisplayName(e.target.value)}
-          placeholder="Jak se zobrazíte ostatním"
-          required
-          disabled={submitting}
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-current disabled:opacity-50"
-          style={{ fontFamily: "var(--font-sans)" }}
-        />
-      </div>
-
       {task.solutionFields.map((field) => (
         <div key={field.id}>
           <label
@@ -380,7 +347,7 @@ function SubmissionForm({
       <div className="flex items-center gap-3">
         <button
           type="submit"
-          disabled={submitting || !displayName.trim()}
+          disabled={submitting}
           className="inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-bold uppercase tracking-wider text-white disabled:opacity-50"
           style={{ background: "var(--czechitas-blue)", fontFamily: "var(--font-sans)" }}
         >
@@ -547,10 +514,7 @@ function TaskBoardItem({
 
 export default function TaskBoard({ lectureId }: { lectureId: string; slug: string }) {
   const openTasks = useQuery(api.tasks.getOpenTasksForLecture, { lectureId });
-
-  // Derive a default display name from user info (use email username part)
-  // We don't have the user email here, so we default to empty string — the user fills it in
-  const defaultDisplayName = "";
+  const defaultDisplayName = useQuery(api.users.getMyDisplayName) ?? "";
 
   if (openTasks === undefined) return null;
   if (openTasks.length === 0) {

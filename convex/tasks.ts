@@ -10,12 +10,12 @@ async function assertAdmin(ctx: MutationCtx) {
 
   const user = await ctx.db.get(userId)
   const adminEmail = process.env.ADMIN_EMAIL
-  const isEnvAdmin = adminEmail && user?.email === adminEmail
+  const isEnvAdmin = adminEmail && user?.email?.toLowerCase() === adminEmail.toLowerCase()
   if (!isEnvAdmin) {
     const allowed = user?.email
       ? await ctx.db
           .query("allowedUsers")
-          .withIndex("by_email", (q) => q.eq("email", user.email!))
+          .withIndex("by_email", (q) => q.eq("email", user.email!.toLowerCase()))
           .first()
       : null
     if (!allowed?.isAdmin) throw new Error("Nemáte oprávnění.")
@@ -29,13 +29,13 @@ async function checkAdmin(ctx: QueryCtx | MutationCtx): Promise<boolean> {
 
   const user = await ctx.db.get(userId)
   const adminEmail = process.env.ADMIN_EMAIL
-  const isEnvAdmin = !!(adminEmail && user?.email === adminEmail)
+  const isEnvAdmin = !!(adminEmail && user?.email?.toLowerCase() === adminEmail.toLowerCase())
   if (isEnvAdmin) return true
 
   const allowed = user?.email
     ? await ctx.db
         .query("allowedUsers")
-        .withIndex("by_email", (q) => q.eq("email", user.email!))
+        .withIndex("by_email", (q) => q.eq("email", user.email!.toLowerCase()))
         .first()
     : null
   return !!(allowed?.isAdmin)
@@ -166,16 +166,14 @@ export const getTaskWithSubmissions = query({
           _id: s._id,
           taskId: s.taskId,
           lectureId: s.lectureId,
-          userId: s.userId,
           displayName: s.displayName,
-          fields: s.fields,
+          fields: (task.shareSolution || s.userId === userId) ? s.fields : [],
           submittedAt: s.submittedAt,
           heartCount: hearts.length,
           hasHearted: !!myHeart,
           isOwn: s.userId === userId,
           comments: comments.map((c) => ({
             _id: c._id,
-            userId: c.userId,
             displayName: c.displayName,
             text: c.text,
             createdAt: c.createdAt,
@@ -222,6 +220,10 @@ export const submitSolution = mutation({
     if (!userId) throw new Error("Nejste přihlášeni.")
 
     if (!displayName.trim()) throw new Error("Jméno nesmí být prázdné.")
+    if (displayName.length > 100) throw new Error("Jméno je příliš dlouhé.")
+    for (const f of fields) {
+      if (f.value.length > 10000) throw new Error("Hodnota pole je příliš dlouhá.")
+    }
 
     const task = await ctx.db
       .query("tasks")
@@ -265,6 +267,12 @@ export const toggleHeart = mutation({
     if (!submission) throw new Error("Příspěvek nenalezen.")
     if (submission.userId === userId) throw new Error("Nemůžete dát srdce vlastnímu řešení.")
 
+    const task = await ctx.db
+      .query("tasks")
+      .withIndex("by_taskId", (q) => q.eq("taskId", submission.taskId))
+      .first()
+    if (!task?.isOpen) throw new Error("Úkol již není otevřen.")
+
     const existing = await ctx.db
       .query("taskHearts")
       .withIndex("by_userId_submissionId", (q) =>
@@ -292,10 +300,18 @@ export const addComment = mutation({
     if (!userId) throw new Error("Nejste přihlášeni.")
 
     if (!text.trim()) throw new Error("Komentář nesmí být prázdný.")
+    if (text.length > 5000) throw new Error("Komentář je příliš dlouhý.")
     if (!displayName.trim()) throw new Error("Jméno nesmí být prázdné.")
+    if (displayName.length > 100) throw new Error("Jméno je příliš dlouhé.")
 
     const submission = await ctx.db.get(submissionId)
     if (!submission) throw new Error("Příspěvek nenalezen.")
+
+    const task = await ctx.db
+      .query("tasks")
+      .withIndex("by_taskId", (q) => q.eq("taskId", submission.taskId))
+      .first()
+    if (!task?.isOpen) throw new Error("Úkol již není otevřen pro komentáře.")
 
     await ctx.db.insert("taskComments", {
       submissionId,

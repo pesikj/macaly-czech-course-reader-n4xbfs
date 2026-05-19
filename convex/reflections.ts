@@ -108,6 +108,8 @@ export const submitAnswer = mutation({
     if (!userId) throw new Error("Nejste přihlášeni.")
 
     if (!answer.trim()) throw new Error("Odpověď nesmí být prázdná.")
+    if (answer.length > 10000) throw new Error("Odpověď je příliš dlouhá.")
+    if (displayName && displayName.length > 100) throw new Error("Jméno je příliš dlouhé.")
 
     // Check the question is actually open
     const question = await ctx.db
@@ -156,12 +158,12 @@ export const listAllQuestions = query({
     // Admin check via env
     const user = await ctx.db.get(userId)
     const adminEmail = process.env.ADMIN_EMAIL
-    const isEnvAdmin = adminEmail && user?.email === adminEmail
+    const isEnvAdmin = adminEmail && user?.email?.toLowerCase() === adminEmail.toLowerCase()
     if (!isEnvAdmin) {
       const allowed = user?.email
         ? await ctx.db
             .query("allowedUsers")
-            .withIndex("by_email", (q) => q.eq("email", user.email!))
+            .withIndex("by_email", (q) => q.eq("email", user.email!.toLowerCase()))
             .first()
         : null
       if (!allowed?.isAdmin) return null
@@ -209,12 +211,12 @@ export const getAnswersForQuestion = query({
 
     const user = await ctx.db.get(userId)
     const adminEmail = process.env.ADMIN_EMAIL
-    const isEnvAdmin = adminEmail && user?.email === adminEmail
+    const isEnvAdmin = adminEmail && user?.email?.toLowerCase() === adminEmail.toLowerCase()
     if (!isEnvAdmin) {
       const allowed = user?.email
         ? await ctx.db
             .query("allowedUsers")
-            .withIndex("by_email", (q) => q.eq("email", user.email!))
+            .withIndex("by_email", (q) => q.eq("email", user.email!.toLowerCase()))
             .first()
         : null
       if (!allowed?.isAdmin) return null
@@ -253,12 +255,12 @@ export const toggleQuestion = mutation({
 
     const user = await ctx.db.get(userId)
     const adminEmail = process.env.ADMIN_EMAIL
-    const isEnvAdmin = adminEmail && user?.email === adminEmail
+    const isEnvAdmin = adminEmail && user?.email?.toLowerCase() === adminEmail.toLowerCase()
     if (!isEnvAdmin) {
       const allowed = user?.email
         ? await ctx.db
             .query("allowedUsers")
-            .withIndex("by_email", (q) => q.eq("email", user.email!))
+            .withIndex("by_email", (q) => q.eq("email", user.email!.toLowerCase()))
             .first()
         : null
       if (!allowed?.isAdmin) throw new Error("Nemáte oprávnění.")

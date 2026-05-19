@@ -97,6 +97,12 @@ export const syncFromGithub = action({
       return { success: false, message: "Nejste přihlášeni.", lecturesSynced: 0 }
     }
 
+    // Only admins may trigger sync
+    const userIsAdmin = await ctx.runQuery(internal.users.isAdminById, { userId })
+    if (!userIsAdmin) {
+      return { success: false, message: "Nemáte oprávnění.", lecturesSynced: 0 }
+    }
+
     const logId: Id<"syncLog"> = await ctx.runMutation(internal.syncLog.createSyncLog, {})
 
     try {

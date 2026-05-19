@@ -37,15 +37,8 @@ function SignInForm() {
   const { signIn } = useAuthActions();
   const [step, setStep] = useState<"email" | "code">("email");
   const [email, setEmail] = useState("");
-  const [pendingEmail, setPendingEmail] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-
-  // Pre-check if email is allowed (debounce via query skip)
-  const checkAllowed = useQuery(
-    api.allowedUsers.checkEmailAllowed,
-    pendingEmail.length > 3 ? { email: pendingEmail } : "skip"
-  );
 
   const handleEmailSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -54,15 +47,6 @@ function SignInForm() {
     try {
       const formData = new FormData(e.currentTarget);
       const enteredEmail = (formData.get("email") as string).trim().toLowerCase();
-
-      // Re-query whitelist synchronously using the value we already have
-      // checkAllowed may be undefined if query is loading — treat as allowed to avoid blocking
-      if (checkAllowed === false) {
-        setError("Tento e-mail není v seznamu oprávněných uživatelů.");
-        setIsLoading(false);
-        return;
-      }
-
       setEmail(enteredEmail);
       formData.set("email", enteredEmail);
       await signIn("resend-otp", formData);
@@ -122,7 +106,7 @@ function SignInForm() {
               placeholder="vas@email.cz"
               required
               disabled={isLoading}
-              onChange={(e) => setPendingEmail(e.target.value)}
+
               className="w-full rounded-lg border border-border bg-card px-4 py-2.5 text-sm outline-none focus:border-current"
               style={{ fontFamily: "var(--font-sans)" }}
             />

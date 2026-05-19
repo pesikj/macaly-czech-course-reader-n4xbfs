@@ -20,25 +20,6 @@ async function requireAdmin(ctx: any) {
   if (!isAdmin) throw new Error("Nemáte oprávnění správce.")
 }
 
-// ── Public query: check if email is allowed to log in ─────────────
-// Used by sign-in forms before sending the OTP
-
-export const checkEmailAllowed = query({
-  args: { email: v.string() },
-  returns: v.boolean(),
-  handler: async (ctx, { email }) => {
-    const normalized = email.trim().toLowerCase()
-    // Admin email is always allowed (even before it appears in allowedUsers)
-    const adminEmail = process.env.ADMIN_EMAIL
-    if (adminEmail && normalized === adminEmail.toLowerCase()) return true
-    const entry = await ctx.db
-      .query("allowedUsers")
-      .withIndex("by_email", (q) => q.eq("email", normalized))
-      .unique()
-    return entry !== null
-  },
-})
-
 // ── Admin: list all allowed users ─────────────────────────────────
 
 export const list = query({
