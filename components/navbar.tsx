@@ -7,6 +7,20 @@ import { Authenticated, Unauthenticated } from "convex/react"
 import { api } from "@/convex/_generated/api"
 import { LogOut } from "lucide-react"
 
+function AdminNavButton() {
+  const isAdmin = useQuery(api.users.isAdmin)
+  if (!isAdmin) return null
+  return (
+    <Link
+      href="/admin"
+      className="rounded px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+      style={{ fontFamily: "var(--font-sans)" }}
+    >
+      Admin
+    </Link>
+  )
+}
+
 function NavbarAuth() {
   const { signOut } = useAuthActions()
   const user = useQuery(api.users.currentLoggedInUser)
@@ -69,6 +83,7 @@ export default function Navbar() {
 
         {/* Navigation */}
         <nav className="flex items-center gap-1">
+          <AdminNavButton />
           <a
             href="https://www.czechitas.cz/kurzy/vibe-coding-v-praxi-vytvor-si-vlastni-web-s-ai-bez-programovani"
             target="_blank"

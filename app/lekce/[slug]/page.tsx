@@ -24,7 +24,7 @@ export async function generateMetadata({
   if (!lecture) return { title: 'Lekce nenalezena' };
   return {
     title: `${lecture.title} — Vibe coding`,
-    description: lecture.description ?? 'Materiály k online kurzu Vibe coding',
+    description: lecture.kompetence ?? 'Materiály k online kurzu Vibe coding',
   };
 }
 
