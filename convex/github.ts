@@ -109,21 +109,21 @@ export const syncFromGithub = action({
       }
 
       const lecturesFile = await lecturesRes.json() as { content: string }
-      const lecturesMap: Record<string, string> = JSON.parse(decodeBase64(lecturesFile.content))
-      console.log(`lectures.json (branch: ${branch}):`, lecturesMap)
+      const lecturesList: Array<{ cislo: number; adresar: string; tema?: string; kompetence?: string }> = JSON.parse(decodeBase64(lecturesFile.content))
+      console.log(`lectures.json (branch: ${branch}):`, lecturesList)
 
       // 2. Fetch each lecture + embed images
       let synced = 0
       const errors: string[] = []
 
-      for (const [lectureId, directory] of Object.entries(lecturesMap)) {
-        const mdPath = `${directory}/lekce-${lectureId}.md`
+      for (const { cislo, adresar } of lecturesList) {
+        const mdPath = `${adresar}/lekce-${cislo}.md`
         console.log(`Fetching: ${mdPath}`)
 
         const mdRes = await githubFetch(mdPath, token, branch)
         if (!mdRes.ok) {
           console.error(`Failed ${mdPath}: ${mdRes.status}`)
-          errors.push(`lekce-${lectureId} (HTTP ${mdRes.status})`)
+          errors.push(`${adresar} (HTTP ${mdRes.status})`)
           continue
         }
 
@@ -131,10 +131,9 @@ export const syncFromGithub = action({
         let markdown = decodeBase64(mdFile.content)
 
         // Embed images as base64 data URIs so they work without any proxy
-        markdown = await embedImages(markdown, directory, token, branch)
+        markdown = await embedImages(markdown, adresar, token, branch)
 
-        const normalizedId = lectureId.startsWith("lekce-") ? lectureId : `lekce-${lectureId}`
-        await ctx.runAction(internal.lectures.upsertLectureContent, { lectureId: normalizedId, markdown })
+        await ctx.runAction(internal.lectures.upsertLectureContent, { lectureId: adresar, markdown })
         synced++
       }
 
