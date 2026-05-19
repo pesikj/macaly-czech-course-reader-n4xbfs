@@ -3,11 +3,19 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import { CheckCircle, MessageCircle, Send, Edit2 } from "lucide-react";
+import { CheckCircle, MessageCircle, Send, Edit2, Users } from "lucide-react";
 
 interface Props {
   lectureId: string;
 }
+
+type Answer = {
+  _id: string;
+  answer: string;
+  isAnonymous: boolean;
+  displayName?: string;
+  isOwn: boolean;
+};
 
 function QuestionCard({
   q,
@@ -18,6 +26,7 @@ function QuestionCard({
     questionId: string;
     question: string;
     myAnswer: { answer: string; isAnonymous: boolean; displayName?: string } | null;
+    answers: Answer[];
   };
   lectureId: string;
 }) {
@@ -170,6 +179,26 @@ function QuestionCard({
           )}
         </form>
       )}
+
+      {/* Other students' answers */}
+      {q.answers.filter((a) => !a.isOwn).length > 0 && (
+        <div className="mt-5 border-t border-border pt-4">
+          <div className="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+            <Users className="h-3.5 w-3.5" />
+            Odpovědi ostatních ({q.answers.filter((a) => !a.isOwn).length})
+          </div>
+          <div className="space-y-2">
+            {q.answers.filter((a) => !a.isOwn).map((a) => (
+              <div key={a._id} className="rounded-lg bg-muted px-4 py-3">
+                <p className="text-sm text-foreground break-words">{a.answer}</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {a.isAnonymous ? "Anonymně" : (a.displayName || "bez jména")}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -182,7 +211,7 @@ export default function ReflectionBoard({ lectureId }: Props) {
   if (questions.length === 0) return null;
 
   return (
-    <section className="mt-14 border-t border-border pt-10" style={{ fontFamily: "var(--font-sans)" }}>
+    <section id="reflexe" className="mt-14 border-t border-border pt-10" style={{ fontFamily: "var(--font-sans)" }}>
       <div className="mb-6">
         <div
           className="mb-1 text-xs font-bold uppercase tracking-[0.15em] text-muted-foreground"

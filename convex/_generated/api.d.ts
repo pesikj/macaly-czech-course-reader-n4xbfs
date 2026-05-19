@@ -17,6 +17,7 @@ import type * as http from "../http.js";
 import type * as lectures from "../lectures.js";
 import type * as reflections from "../reflections.js";
 import type * as syncLog from "../syncLog.js";
+import type * as tasks from "../tasks.js";
 import type * as users from "../users.js";
 
 import type {
@@ -35,6 +36,7 @@ declare const fullApi: ApiFromModules<{
   lectures: typeof lectures;
   reflections: typeof reflections;
   syncLog: typeof syncLog;
+  tasks: typeof tasks;
   users: typeof users;
 }>;
 

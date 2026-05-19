@@ -136,7 +136,7 @@ export const syncFromGithub = action({
         await ctx.runAction(internal.lectures.upsertLectureContent, { lectureId: adresar, markdown })
         synced++
 
-        // Try to sync activities.json (reflection questions) — optional, no error on missing
+        // Try to sync activities.json (reflection questions + tasks) — optional, no error on missing
         const activitiesPath = `${adresar}/activities.json`
         const activitiesRes = await githubFetch(activitiesPath, token, branch)
         if (activitiesRes.ok) {
@@ -144,7 +144,16 @@ export const syncFromGithub = action({
             const activitiesFile = await activitiesRes.json() as { content: string }
             const activitiesData = JSON.parse(decodeBase64(activitiesFile.content)) as {
               reflection_board?: { questions?: Array<{ id: string; question: string }> }
+              tasks?: Array<{
+                id: string
+                title: string
+                file: string
+                share_solution: boolean
+                solution_fields: Array<{ id: string; label: string; type: string; required: boolean }>
+              }>
             }
+
+            // Sync reflection questions
             const questions = activitiesData?.reflection_board?.questions ?? []
             if (questions.length > 0) {
               await ctx.runMutation(internal.reflections.upsertReflectionQuestions, {
@@ -152,6 +161,39 @@ export const syncFromGithub = action({
                 questions,
               })
               console.log(`Synced ${questions.length} reflection questions for ${adresar}`)
+            }
+
+            // Sync tasks
+            const tasks = activitiesData?.tasks ?? []
+            for (const task of tasks) {
+              // Fetch the task markdown file
+              const taskMarkdownPath = `${adresar}/${task.file}`
+              console.log(`Fetching task markdown: ${taskMarkdownPath}`)
+              const taskMdRes = await githubFetch(taskMarkdownPath, token, branch)
+              let taskMarkdown = ""
+              if (taskMdRes.ok) {
+                const taskMdFile = await taskMdRes.json() as { content: string }
+                taskMarkdown = decodeBase64(taskMdFile.content)
+              } else {
+                console.warn(`Failed to fetch task markdown ${taskMarkdownPath}: ${taskMdRes.status}`)
+              }
+
+              await ctx.runMutation(internal.tasks.upsertTask, {
+                lectureId: adresar,
+                taskId: task.id,
+                title: task.title,
+                markdown: taskMarkdown,
+                shareSolution: task.share_solution ?? false,
+                solutionFields: (task.solution_fields ?? []).map((f) => ({
+                  id: f.id,
+                  label: f.label,
+                  type: f.type,
+                  required: f.required ?? false,
+                })),
+              })
+            }
+            if (tasks.length > 0) {
+              console.log(`Synced ${tasks.length} tasks for ${adresar}`)
             }
           } catch (e) {
             console.warn(`Failed to parse activities.json for ${adresar}:`, e)

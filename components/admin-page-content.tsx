@@ -27,6 +27,7 @@ import {
   ExternalLink,
   Unlock,
   Lock,
+  ClipboardList,
 } from "lucide-react";
 import type { Id } from "@/convex/_generated/dataModel";
 
@@ -591,6 +592,140 @@ function ReflectionManagement() {
   );
 }
 
+// ── Task management ───────────────────────────────────────────────
+
+function TaskManagement() {
+  const tasks = useQuery(api.tasks.listAllTasks);
+  const toggleTask = useMutation(api.tasks.toggleTask);
+  const [toggling, setToggling] = useState<string | null>(null);
+
+  const handleToggle = async (id: Id<"tasks">) => {
+    setToggling(id);
+    try {
+      await toggleTask({ id });
+    } catch (err) {
+      alert(String(err));
+    } finally {
+      setToggling(null);
+    }
+  };
+
+  // Group tasks by lectureId
+  const grouped: Record<string, NonNullable<typeof tasks>> = {};
+  if (tasks) {
+    for (const t of tasks) {
+      if (!grouped[t.lectureId]) grouped[t.lectureId] = [];
+      grouped[t.lectureId].push(t);
+    }
+  }
+
+  return (
+    <div className="mt-6 rounded-xl border border-border bg-card p-6 shadow-sm">
+      <div className="mb-5 flex items-center gap-2">
+        <ClipboardList className="h-5 w-5" style={{ color: "var(--czechitas-blue)" }} />
+        <h2
+          className="text-lg font-black uppercase tracking-tight"
+          style={{ fontFamily: "var(--font-sans)", color: "var(--czechitas-blue)" }}
+        >
+          Úkoly
+        </h2>
+      </div>
+
+      <p className="mb-5 text-sm text-muted-foreground" style={{ fontFamily: "var(--font-sans)" }}>
+        Úkoly se synchronizují z&nbsp;GitHub repozitáře (soubor{" "}
+        <code className="rounded bg-muted px-1 py-0.5 text-xs font-mono">activities.json</code>
+        {" "}v adresáři každé lekce). Pomocí tlačítek otevřete nebo zavřete odevzdávání.
+      </p>
+
+      {tasks === undefined && (
+        <p className="text-sm text-muted-foreground" style={{ fontFamily: "var(--font-sans)" }}>
+          Načítám…
+        </p>
+      )}
+
+      {tasks !== null && tasks !== undefined && tasks.length === 0 && (
+        <p className="text-sm italic text-muted-foreground" style={{ fontFamily: "var(--font-sans)" }}>
+          Zatím žádné úkoly. Proveďte synchronizaci z&nbsp;GitHubu.
+        </p>
+      )}
+
+      {tasks === null && (
+        <p className="text-sm text-red-600" style={{ fontFamily: "var(--font-sans)" }}>
+          Nemáte oprávnění zobrazit úkoly.
+        </p>
+      )}
+
+      {tasks && tasks.length > 0 && (
+        <div className="space-y-6">
+          {Object.entries(grouped).map(([lectureId, ts]) => (
+            <div key={lectureId}>
+              <p
+                className="mb-2 text-xs font-bold uppercase tracking-wider text-muted-foreground"
+                style={{ fontFamily: "var(--font-sans)" }}
+              >
+                {lectureId}
+              </p>
+              <ul className="space-y-2">
+                {ts.map((t) => (
+                  <li
+                    key={t._id}
+                    className="flex items-start justify-between gap-3 rounded-lg border border-border bg-background px-4 py-3"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p
+                        className="text-sm font-medium leading-snug text-foreground"
+                        style={{ fontFamily: "var(--font-sans)" }}
+                      >
+                        {t.title}
+                      </p>
+                      <p
+                        className="mt-0.5 text-xs text-muted-foreground"
+                        style={{ fontFamily: "var(--font-sans)" }}
+                      >
+                        {t.submissionCount}{" "}
+                        {t.submissionCount === 1
+                          ? "odevzdání"
+                          : t.submissionCount >= 2 && t.submissionCount <= 4
+                          ? "odevzdání"
+                          : "odevzdání"}
+                        {" · "}
+                        <span
+                          style={{ color: t.isOpen ? "var(--czechitas-pink)" : undefined }}
+                          className={t.isOpen ? "font-bold" : ""}
+                        >
+                          {t.isOpen ? "Otevřený" : "Zavřený"}
+                        </span>
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <button
+                        onClick={() => handleToggle(t._id as Id<"tasks">)}
+                        disabled={toggling === t._id}
+                        className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-white disabled:opacity-50 transition-opacity"
+                        style={{
+                          fontFamily: "var(--font-sans)",
+                          background: t.isOpen ? "var(--czechitas-blue)" : "var(--czechitas-pink)",
+                        }}
+                        title={t.isOpen ? "Zavřít odevzdávání" : "Otevřít odevzdávání"}
+                      >
+                        {t.isOpen ? (
+                          <><Lock className="h-3.5 w-3.5" /> Zavřít</>
+                        ) : (
+                          <><Unlock className="h-3.5 w-3.5" /> Otevřít</>
+                        )}
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Admin dashboard ───────────────────────────────────────────────
 
 function AdminDashboard() {
@@ -796,6 +931,9 @@ function AdminDashboard() {
 
         {/* Reflection management */}
         <ReflectionManagement />
+
+        {/* Task management */}
+        <TaskManagement />
       </div>
     </div>
   );

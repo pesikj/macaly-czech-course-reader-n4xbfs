@@ -59,6 +59,13 @@ export const getOpenQuestionsForLecture = query({
             qb.eq("userId", userId).eq("questionId", q.questionId)
           )
           .first()
+
+        const allAnswers = await ctx.db
+          .query("reflectionAnswers")
+          .withIndex("by_questionId", (qb) => qb.eq("questionId", q.questionId))
+          .order("asc")
+          .collect()
+
         return {
           _id: q._id,
           questionId: q.questionId,
@@ -70,6 +77,13 @@ export const getOpenQuestionsForLecture = query({
                 displayName: myAnswer.displayName,
               }
             : null,
+          answers: allAnswers.map((a) => ({
+            _id: a._id,
+            answer: a.answer,
+            isAnonymous: a.isAnonymous,
+            displayName: a.displayName,
+            isOwn: a.userId === userId,
+          })),
         }
       })
     )

@@ -55,4 +55,55 @@ export default defineSchema({
   })
     .index("by_questionId", ["questionId"])
     .index("by_userId_questionId", ["userId", "questionId"]),
+
+  tasks: defineTable({
+    lectureId: v.string(),
+    taskId: v.string(),
+    title: v.string(),
+    markdown: v.string(),
+    isOpen: v.boolean(),
+    shareSolution: v.boolean(),
+    solutionFields: v.array(
+      v.object({
+        id: v.string(),
+        label: v.string(),
+        type: v.string(),
+        required: v.boolean(),
+      })
+    ),
+    syncedAt: v.number(),
+  })
+    .index("by_lectureId", ["lectureId"])
+    .index("by_taskId", ["taskId"]),
+
+  taskSubmissions: defineTable({
+    taskId: v.string(),
+    lectureId: v.string(),
+    userId: v.id("users"),
+    displayName: v.string(),
+    fields: v.array(
+      v.object({
+        fieldId: v.string(),
+        value: v.string(),
+      })
+    ),
+    submittedAt: v.number(),
+  })
+    .index("by_taskId", ["taskId"])
+    .index("by_userId_taskId", ["userId", "taskId"]),
+
+  taskHearts: defineTable({
+    submissionId: v.id("taskSubmissions"),
+    userId: v.id("users"),
+  })
+    .index("by_submissionId", ["submissionId"])
+    .index("by_userId_submissionId", ["userId", "submissionId"]),
+
+  taskComments: defineTable({
+    submissionId: v.id("taskSubmissions"),
+    userId: v.id("users"),
+    displayName: v.string(),
+    text: v.string(),
+    createdAt: v.number(),
+  }).index("by_submissionId", ["submissionId"]),
 })
