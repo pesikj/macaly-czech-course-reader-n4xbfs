@@ -18,6 +18,7 @@ export default defineSchema({
   allowedUsers: defineTable({
     email: v.string(),
     isAdmin: v.boolean(),
+    isTeamMember: v.optional(v.boolean()),
   }).index("by_email", ["email"]),
 
   lectureContents: defineTable({

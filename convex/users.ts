@@ -1,6 +1,36 @@
-import { query, mutation, internalQuery } from "./_generated/server"
+import { query, mutation, internalQuery, QueryCtx, MutationCtx } from "./_generated/server"
 import { v } from "convex/values"
 import { getAuthUserId } from "@convex-dev/auth/server"
+
+/** Shared helper: returns { isAdmin, isTeamMember } for the current user. */
+export async function getUserRole(
+  ctx: QueryCtx | MutationCtx
+): Promise<{ isAdmin: boolean; isTeamMember: boolean }> {
+  const userId = await getAuthUserId(ctx)
+  if (!userId) return { isAdmin: false, isTeamMember: false }
+  const user = await ctx.db.get(userId)
+  if (!user?.email) return { isAdmin: false, isTeamMember: false }
+  const email = user.email.toLowerCase()
+  const adminEmail = process.env.ADMIN_EMAIL
+  if (adminEmail && email === adminEmail.toLowerCase()) {
+    return { isAdmin: true, isTeamMember: true }
+  }
+  const entry = await ctx.db
+    .query("allowedUsers")
+    .withIndex("by_email", (q) => q.eq("email", email))
+    .unique()
+  const isAdmin = entry?.isAdmin === true
+  const isTeamMember = isAdmin || entry?.isTeamMember === true
+  return { isAdmin, isTeamMember }
+}
+
+/** True for admins and team members (i.e. anyone with elevated visibility). */
+export async function hasElevatedAccess(
+  ctx: QueryCtx | MutationCtx
+): Promise<boolean> {
+  const r = await getUserRole(ctx)
+  return r.isAdmin || r.isTeamMember
+}
 
 export const currentLoggedInUser = query({
   args: {},
@@ -75,21 +105,18 @@ export const isAdmin = query({
   args: {},
   returns: v.boolean(),
   handler: async (ctx) => {
-    const userId = await getAuthUserId(ctx)
-    if (!userId) return false
-    const user = await ctx.db.get(userId)
-    if (!user?.email) return false
-    const email = user.email.toLowerCase()
+    const role = await getUserRole(ctx)
+    return role.isAdmin
+  },
+})
 
-    // Always grant admin if matches ADMIN_EMAIL env var
-    const adminEmail = process.env.ADMIN_EMAIL
-    if (adminEmail && email === adminEmail.toLowerCase()) return true
-
-    // Otherwise check allowedUsers table
-    const entry = await ctx.db
-      .query("allowedUsers")
-      .withIndex("by_email", (q) => q.eq("email", email))
-      .unique()
-    return entry?.isAdmin === true
+export const myRole = query({
+  args: {},
+  returns: v.object({
+    isAdmin: v.boolean(),
+    isTeamMember: v.boolean(),
+  }),
+  handler: async (ctx) => {
+    return await getUserRole(ctx)
   },
 })

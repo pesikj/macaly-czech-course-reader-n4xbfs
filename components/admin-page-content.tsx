@@ -206,8 +206,10 @@ function UserManagement() {
   const addBulk = useMutation(api.allowedUsers.addBulk);
   const removeUser = useMutation(api.allowedUsers.remove);
 
+  const setRole = useMutation(api.allowedUsers.setRole);
+
   const [newEmail, setNewEmail] = useState("");
-  const [newIsAdmin, setNewIsAdmin] = useState(false);
+  const [newRole, setNewRole] = useState<"user" | "team" | "admin">("user");
   const [addError, setAddError] = useState<string | null>(null);
   const [addSuccess, setAddSuccess] = useState<string | null>(null);
   const [isAdding, setIsAdding] = useState(false);
@@ -224,13 +226,17 @@ function UserManagement() {
     if (!newEmail.trim()) return;
     setIsAdding(true);
     try {
-      const result = await addUser({ email: newEmail.trim(), isAdmin: newIsAdmin });
+      const result = await addUser({
+        email: newEmail.trim(),
+        isAdmin: newRole === "admin",
+        isTeamMember: newRole === "team",
+      });
       if (result === null) {
         setAddError("Tento e-mail je již v seznamu.");
       } else {
         setAddSuccess(`Uživatel ${newEmail.trim().toLowerCase()} byl přidán.`);
         setNewEmail("");
-        setNewIsAdmin(false);
+        setNewRole("user");
       }
     } catch (err) {
       setAddError(String(err));
@@ -309,16 +315,25 @@ function UserManagement() {
             style={{ fontFamily: "var(--font-sans)" }}
           />
         </div>
-        <label className="flex items-center gap-2 mb-2 cursor-pointer select-none text-sm text-muted-foreground" style={{ fontFamily: "var(--font-sans)" }}>
-          <input
-            type="checkbox"
-            checked={newIsAdmin}
-            onChange={(e) => setNewIsAdmin(e.target.checked)}
+        <div className="mb-1">
+          <label
+            className="mb-1 block text-xs font-bold uppercase tracking-wider text-muted-foreground"
+            style={{ fontFamily: "var(--font-sans)" }}
+          >
+            Role
+          </label>
+          <select
+            value={newRole}
+            onChange={(e) => setNewRole(e.target.value as "user" | "team" | "admin")}
             disabled={isAdding}
-            className="h-4 w-4 rounded"
-          />
-          Admin
-        </label>
+            className="rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-current disabled:opacity-50"
+            style={{ fontFamily: "var(--font-sans)" }}
+          >
+            <option value="user">Uživatel</option>
+            <option value="team">Člen týmu</option>
+            <option value="admin">Admin</option>
+          </select>
+        </div>
         <button
           type="submit"
           disabled={isAdding || !newEmail.trim()}
@@ -399,36 +414,73 @@ function UserManagement() {
           </p>
         ) : (
           <ul className="space-y-2">
-            {users.map((u) => (
-              <li
-                key={u._id}
-                className="flex items-center justify-between gap-3 rounded-lg border border-border bg-background px-4 py-2.5"
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <span
-                    className="truncate text-sm font-medium"
-                    style={{ fontFamily: "var(--font-sans)" }}
-                  >
-                    {u.email}
-                  </span>
-                  {u.isAdmin && (
-                    <span
-                      className="shrink-0 rounded-full px-2 py-0.5 text-xs font-bold text-white"
-                      style={{ background: "var(--czechitas-blue)", fontFamily: "var(--font-sans)" }}
-                    >
-                      Admin
-                    </span>
-                  )}
-                </div>
-                <button
-                  onClick={() => handleRemove(u._id)}
-                  className="shrink-0 text-muted-foreground hover:text-red-500 transition-colors"
-                  title="Odstranit uživatele"
+            {users.map((u) => {
+              const currentRole: "user" | "team" | "admin" = u.isAdmin
+                ? "admin"
+                : u.isTeamMember
+                ? "team"
+                : "user";
+              return (
+                <li
+                  key={u._id}
+                  className="flex items-center justify-between gap-3 rounded-lg border border-border bg-background px-4 py-2.5"
                 >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              </li>
-            ))}
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span
+                      className="truncate text-sm font-medium"
+                      style={{ fontFamily: "var(--font-sans)" }}
+                    >
+                      {u.email}
+                    </span>
+                    {u.isAdmin && (
+                      <span
+                        className="shrink-0 rounded-full px-2 py-0.5 text-xs font-bold text-white"
+                        style={{ background: "var(--czechitas-blue)", fontFamily: "var(--font-sans)" }}
+                      >
+                        Admin
+                      </span>
+                    )}
+                    {!u.isAdmin && u.isTeamMember && (
+                      <span
+                        className="shrink-0 rounded-full px-2 py-0.5 text-xs font-bold text-white"
+                        style={{ background: "var(--czechitas-pink)", fontFamily: "var(--font-sans)" }}
+                      >
+                        Tým
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <select
+                      value={currentRole}
+                      onChange={async (e) => {
+                        try {
+                          await setRole({
+                            id: u._id,
+                            role: e.target.value as "user" | "team" | "admin",
+                          });
+                        } catch (err) {
+                          alert(String(err));
+                        }
+                      }}
+                      className="rounded-lg border border-border bg-background px-2 py-1 text-xs outline-none focus:border-current"
+                      style={{ fontFamily: "var(--font-sans)" }}
+                      title="Změnit roli"
+                    >
+                      <option value="user">Uživatel</option>
+                      <option value="team">Člen týmu</option>
+                      <option value="admin">Admin</option>
+                    </select>
+                    <button
+                      onClick={() => handleRemove(u._id)}
+                      className="text-muted-foreground hover:text-red-500 transition-colors"
+                      title="Odstranit uživatele"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>
