@@ -1,6 +1,7 @@
 import { mutation, query, internalMutation } from "./_generated/server"
 import { v } from "convex/values"
 import { getAuthUserId } from "@convex-dev/auth/server"
+import { hasElevatedAccess } from "./users"
 
 // ── Internal: called from sync ────────────────────────────────────
 
@@ -44,11 +45,13 @@ export const getOpenQuestionsForLecture = query({
     const userId = await getAuthUserId(ctx)
     if (!userId) return []
 
-    const questions = await ctx.db
+    const elevated = await hasElevatedAccess(ctx)
+    const baseQuery = ctx.db
       .query("reflectionQuestions")
       .withIndex("by_lectureId", (q) => q.eq("lectureId", lectureId))
-      .filter((q) => q.eq(q.field("isOpen"), true))
-      .collect()
+    const questions = elevated
+      ? await baseQuery.collect()
+      : await baseQuery.filter((q) => q.eq(q.field("isOpen"), true)).collect()
 
     // For each open question, fetch the user's existing answer if any
     const result = await Promise.all(
@@ -152,22 +155,7 @@ export const submitAnswer = mutation({
 export const listAllQuestions = query({
   args: {},
   handler: async (ctx) => {
-    const userId = await getAuthUserId(ctx)
-    if (!userId) return null
-
-    // Admin check via env
-    const user = await ctx.db.get(userId)
-    const adminEmail = process.env.ADMIN_EMAIL
-    const isEnvAdmin = adminEmail && user?.email?.toLowerCase() === adminEmail.toLowerCase()
-    if (!isEnvAdmin) {
-      const allowed = user?.email
-        ? await ctx.db
-            .query("allowedUsers")
-            .withIndex("by_email", (q) => q.eq("email", user.email!.toLowerCase()))
-            .first()
-        : null
-      if (!allowed?.isAdmin) return null
-    }
+    if (!(await hasElevatedAccess(ctx))) return null
 
     const questions = await ctx.db.query("reflectionQuestions").collect()
 
@@ -206,21 +194,7 @@ export const listAllQuestions = query({
 export const getAnswersForQuestion = query({
   args: { questionDocId: v.id("reflectionQuestions") },
   handler: async (ctx, { questionDocId }) => {
-    const userId = await getAuthUserId(ctx)
-    if (!userId) return null
-
-    const user = await ctx.db.get(userId)
-    const adminEmail = process.env.ADMIN_EMAIL
-    const isEnvAdmin = adminEmail && user?.email?.toLowerCase() === adminEmail.toLowerCase()
-    if (!isEnvAdmin) {
-      const allowed = user?.email
-        ? await ctx.db
-            .query("allowedUsers")
-            .withIndex("by_email", (q) => q.eq("email", user.email!.toLowerCase()))
-            .first()
-        : null
-      if (!allowed?.isAdmin) return null
-    }
+    if (!(await hasElevatedAccess(ctx))) return null
 
     const question = await ctx.db.get(questionDocId)
     if (!question) return null

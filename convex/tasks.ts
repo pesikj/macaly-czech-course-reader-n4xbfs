@@ -1,6 +1,7 @@
-import { mutation, query, internalMutation, MutationCtx, QueryCtx } from "./_generated/server"
+import { mutation, query, internalMutation, MutationCtx } from "./_generated/server"
 import { v } from "convex/values"
 import { getAuthUserId } from "@convex-dev/auth/server"
+import { hasElevatedAccess } from "./users"
 
 // ── Helper: admin check ────────────────────────────────────────────
 
@@ -21,24 +22,6 @@ async function assertAdmin(ctx: MutationCtx) {
     if (!allowed?.isAdmin) throw new Error("Nemáte oprávnění.")
   }
   return userId
-}
-
-async function checkAdmin(ctx: QueryCtx | MutationCtx): Promise<boolean> {
-  const userId = await getAuthUserId(ctx)
-  if (!userId) return false
-
-  const user = await ctx.db.get(userId)
-  const adminEmail = process.env.ADMIN_EMAIL
-  const isEnvAdmin = !!(adminEmail && user?.email?.toLowerCase() === adminEmail.toLowerCase())
-  if (isEnvAdmin) return true
-
-  const allowed = user?.email
-    ? await ctx.db
-        .query("allowedUsers")
-        .withIndex("by_email", (q) => q.eq("email", user.email!.toLowerCase()))
-        .first()
-    : null
-  return !!(allowed?.isAdmin)
 }
 
 // ── Internal: called from sync ────────────────────────────────────
@@ -94,18 +77,21 @@ export const upsertTask = internalMutation({
 
 // ── Student queries ───────────────────────────────────────────────
 
-/** Returns open tasks for a lecture with submission count (for students) */
+/** Returns tasks for a lecture with submission count.
+ *  Students see only open tasks; admins and team members see all. */
 export const getOpenTasksForLecture = query({
   args: { lectureId: v.string() },
   handler: async (ctx, { lectureId }) => {
     const userId = await getAuthUserId(ctx)
     if (!userId) return []
 
-    const tasks = await ctx.db
+    const elevated = await hasElevatedAccess(ctx)
+    const baseQuery = ctx.db
       .query("tasks")
       .withIndex("by_lectureId", (q) => q.eq("lectureId", lectureId))
-      .filter((q) => q.eq(q.field("isOpen"), true))
-      .collect()
+    const tasks = elevated
+      ? await baseQuery.collect()
+      : await baseQuery.filter((q) => q.eq(q.field("isOpen"), true)).collect()
 
     const result = await Promise.all(
       tasks.map(async (t) => {
@@ -117,6 +103,7 @@ export const getOpenTasksForLecture = query({
           _id: t._id,
           taskId: t.taskId,
           title: t.title,
+          isOpen: t.isOpen,
           submissionCount: submissions.length,
         }
       })
@@ -132,6 +119,8 @@ export const getTaskWithSubmissions = query({
   handler: async (ctx, { taskId, lectureId }) => {
     const userId = await getAuthUserId(ctx)
     if (!userId) return null
+
+    const elevated = await hasElevatedAccess(ctx)
 
     const task = await ctx.db
       .query("tasks")
@@ -167,7 +156,7 @@ export const getTaskWithSubmissions = query({
           taskId: s.taskId,
           lectureId: s.lectureId,
           displayName: s.displayName,
-          fields: (task.shareSolution || s.userId === userId) ? s.fields : [],
+          fields: (elevated || task.shareSolution || s.userId === userId) ? s.fields : [],
           submittedAt: s.submittedAt,
           heartCount: hearts.length,
           hasHearted: !!myHeart,
@@ -192,7 +181,8 @@ export const getTaskWithSubmissions = query({
       title: task.title,
       markdown: task.markdown,
       isOpen: task.isOpen,
-      shareSolution: task.shareSolution,
+      // Elevated users (admin/team) always see all solutions, regardless of shareSolution.
+      shareSolution: elevated || task.shareSolution,
       solutionFields: task.solutionFields,
       mySubmission,
       submissions: enrichedSubmissions,
@@ -325,12 +315,12 @@ export const addComment = mutation({
 
 // ── Admin queries ─────────────────────────────────────────────────
 
-/** List all tasks with submission counts (admin only) */
+/** List all tasks with submission counts (admin/team only) */
 export const listAllTasks = query({
   args: {},
   handler: async (ctx) => {
-    const isAdm = await checkAdmin(ctx)
-    if (!isAdm) return null
+    const elevated = await hasElevatedAccess(ctx)
+    if (!elevated) return null
 
     const tasks = await ctx.db.query("tasks").collect()
 

@@ -30,6 +30,7 @@ export const list = query({
       _creationTime: v.number(),
       email: v.string(),
       isAdmin: v.boolean(),
+      isTeamMember: v.optional(v.boolean()),
     })
   ),
   handler: async (ctx) => {
@@ -41,9 +42,13 @@ export const list = query({
 // ── Admin: add a single user ──────────────────────────────────────
 
 export const add = mutation({
-  args: { email: v.string(), isAdmin: v.optional(v.boolean()) },
+  args: {
+    email: v.string(),
+    isAdmin: v.optional(v.boolean()),
+    isTeamMember: v.optional(v.boolean()),
+  },
   returns: v.union(v.id("allowedUsers"), v.null()),
-  handler: async (ctx, { email, isAdmin }) => {
+  handler: async (ctx, { email, isAdmin, isTeamMember }) => {
     await requireAdmin(ctx)
     const normalized = email.trim().toLowerCase()
     const existing = await ctx.db
@@ -51,7 +56,11 @@ export const add = mutation({
       .withIndex("by_email", (q) => q.eq("email", normalized))
       .unique()
     if (existing) return null // already exists
-    return await ctx.db.insert("allowedUsers", { email: normalized, isAdmin: isAdmin ?? false })
+    return await ctx.db.insert("allowedUsers", {
+      email: normalized,
+      isAdmin: isAdmin ?? false,
+      isTeamMember: isTeamMember ?? false,
+    })
   },
 })
 
@@ -61,9 +70,10 @@ export const addBulk = mutation({
   args: {
     emails: v.array(v.string()),
     isAdmin: v.optional(v.boolean()),
+    isTeamMember: v.optional(v.boolean()),
   },
   returns: v.object({ added: v.number(), skipped: v.number() }),
-  handler: async (ctx, { emails, isAdmin }) => {
+  handler: async (ctx, { emails, isAdmin, isTeamMember }) => {
     await requireAdmin(ctx)
     let added = 0
     let skipped = 0
@@ -77,11 +87,33 @@ export const addBulk = mutation({
       if (existing) {
         skipped++
       } else {
-        await ctx.db.insert("allowedUsers", { email: normalized, isAdmin: isAdmin ?? false })
+        await ctx.db.insert("allowedUsers", {
+          email: normalized,
+          isAdmin: isAdmin ?? false,
+          isTeamMember: isTeamMember ?? false,
+        })
         added++
       }
     }
     return { added, skipped }
+  },
+})
+
+// ── Admin: set a user's role ──────────────────────────────────────
+
+export const setRole = mutation({
+  args: {
+    id: v.id("allowedUsers"),
+    role: v.union(v.literal("user"), v.literal("team"), v.literal("admin")),
+  },
+  returns: v.null(),
+  handler: async (ctx, { id, role }) => {
+    await requireAdmin(ctx)
+    await ctx.db.patch(id, {
+      isAdmin: role === "admin",
+      isTeamMember: role === "team",
+    })
+    return null
   },
 })
 
