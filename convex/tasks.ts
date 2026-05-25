@@ -1,7 +1,13 @@
 import { mutation, query, internalMutation, MutationCtx } from "./_generated/server"
 import { v } from "convex/values"
 import { getAuthUserId } from "@convex-dev/auth/server"
-import { hasElevatedAccess } from "./users"
+import { hasElevatedAccess, getUserRole } from "./users"
+
+const visibilityValidator = v.union(
+  v.literal("everyone"),
+  v.literal("team"),
+  v.literal("private")
+)
 
 // ── Helper: admin check ────────────────────────────────────────────
 
@@ -120,7 +126,8 @@ export const getTaskWithSubmissions = query({
     const userId = await getAuthUserId(ctx)
     if (!userId) return null
 
-    const elevated = await hasElevatedAccess(ctx)
+    const role = await getUserRole(ctx)
+    const elevated = role.isAdmin || role.isTeamMember
 
     const task = await ctx.db
       .query("tasks")
@@ -130,11 +137,19 @@ export const getTaskWithSubmissions = query({
 
     if (!task) return null
 
-    const submissions = await ctx.db
+    const allSubmissions = await ctx.db
       .query("taskSubmissions")
       .withIndex("by_taskId", (q) => q.eq("taskId", taskId))
       .order("asc")
       .collect()
+
+    const submissions = allSubmissions.filter((s) => {
+      if (s.userId === userId) return true
+      const vis = s.visibility ?? "everyone"
+      if (vis === "private") return false
+      if (vis === "team") return elevated
+      return true
+    })
 
     const enrichedSubmissions = await Promise.all(
       submissions.map(async (s) => {
@@ -156,7 +171,8 @@ export const getTaskWithSubmissions = query({
           taskId: s.taskId,
           lectureId: s.lectureId,
           displayName: s.displayName,
-          fields: (elevated || task.shareSolution || s.userId === userId) ? s.fields : [],
+          visibility: s.visibility ?? "everyone",
+          fields: s.fields,
           submittedAt: s.submittedAt,
           heartCount: hearts.length,
           hasHearted: !!myHeart,
@@ -181,8 +197,8 @@ export const getTaskWithSubmissions = query({
       title: task.title,
       markdown: task.markdown,
       isOpen: task.isOpen,
-      // Elevated users (admin/team) always see all solutions, regardless of shareSolution.
-      shareSolution: elevated || task.shareSolution,
+      // Visibility is decided per-submission by the submitter; this flag stays true so the UI shows the "others' solutions" section whenever there is anything to show.
+      shareSolution: true,
       solutionFields: task.solutionFields,
       mySubmission,
       submissions: enrichedSubmissions,
@@ -204,8 +220,9 @@ export const submitSolution = mutation({
         value: v.string(),
       })
     ),
+    visibility: visibilityValidator,
   },
-  handler: async (ctx, { taskId, lectureId, displayName, fields }) => {
+  handler: async (ctx, { taskId, lectureId, displayName, fields, visibility }) => {
     const userId = await getAuthUserId(ctx)
     if (!userId) throw new Error("Nejste přihlášeni.")
 
@@ -235,6 +252,7 @@ export const submitSolution = mutation({
       userId,
       displayName: displayName.trim(),
       fields,
+      visibility,
       submittedAt: Date.now(),
     }
 

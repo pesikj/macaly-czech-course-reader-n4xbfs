@@ -90,6 +90,9 @@ export default defineSchema({
         value: v.string(),
       })
     ),
+    visibility: v.optional(
+      v.union(v.literal("everyone"), v.literal("team"), v.literal("private"))
+    ),
     submittedAt: v.number(),
   })
     .index("by_taskId", ["taskId"])
