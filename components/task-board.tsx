@@ -39,6 +39,8 @@ type Comment = {
   isOwn: boolean;
 };
 
+type Visibility = "everyone" | "team" | "private";
+
 type Submission = {
   _id: Id<"taskSubmissions">;
   taskId: string;
@@ -46,11 +48,24 @@ type Submission = {
   userId: Id<"users">;
   displayName: string;
   fields: Array<{ fieldId: string; value: string }>;
+  visibility: Visibility;
   submittedAt: number;
   heartCount: number;
   hasHearted: boolean;
   isOwn: boolean;
   comments: Comment[];
+};
+
+const VISIBILITY_OPTIONS: { value: Visibility; label: string; description: string }[] = [
+  { value: "everyone", label: "Všichni účastníci kurzu", description: "Vaše řešení uvidí všichni přihlášení účastníci." },
+  { value: "team", label: "Pouze lektoři a admini", description: "Vaše řešení uvidí pouze členové týmu kurzu." },
+  { value: "private", label: "Pouze já", description: "Vaše řešení neuvidí nikdo kromě vás." },
+];
+
+const VISIBILITY_LABEL: Record<Visibility, string> = {
+  everyone: "Veřejné",
+  team: "Pouze tým",
+  private: "Soukromé",
 };
 
 type TaskData = {
@@ -187,7 +202,17 @@ function SolutionCard({
   return (
     <div className="rounded-xl border border-border bg-card p-5" style={{ fontFamily: "var(--font-sans)" }}>
       <div className="mb-3 flex items-center justify-between gap-2">
-        <p className="text-sm font-bold text-foreground">{submission.displayName}</p>
+        <div className="flex items-center gap-2">
+          <p className="text-sm font-bold text-foreground">{submission.displayName}</p>
+          {submission.visibility !== "everyone" && (
+            <span
+              className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
+              title={VISIBILITY_OPTIONS.find((o) => o.value === submission.visibility)?.description}
+            >
+              {VISIBILITY_LABEL[submission.visibility]}
+            </span>
+          )}
+        </div>
         <button
           onClick={handleHeart}
           disabled={hearting || submission.isOwn}
@@ -265,6 +290,9 @@ function SubmissionForm({
   }
 
   const [fieldValues, setFieldValues] = useState<Record<string, string>>(initialFields);
+  const [visibility, setVisibility] = useState<Visibility>(
+    existingSubmission?.visibility ?? "everyone"
+  );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -290,6 +318,7 @@ function SubmissionForm({
           fieldId: f.id,
           value: fieldValues[f.id] ?? "",
         })),
+        visibility,
       });
       onCancel?.();
     } catch (err) {
@@ -337,6 +366,38 @@ function SubmissionForm({
           )}
         </div>
       ))}
+
+      <fieldset className="space-y-2">
+        <legend
+          className="mb-1 block text-xs font-bold uppercase tracking-wider text-muted-foreground"
+          style={{ fontFamily: "var(--font-sans)" }}
+        >
+          Kdo uvidí vaše řešení?
+        </legend>
+        <div className="space-y-1.5">
+          {VISIBILITY_OPTIONS.map((opt) => (
+            <label
+              key={opt.value}
+              className="flex cursor-pointer items-start gap-2 rounded-lg border border-border bg-background px-3 py-2 text-sm hover:border-current"
+              style={{ fontFamily: "var(--font-sans)" }}
+            >
+              <input
+                type="radio"
+                name={`visibility-${task.taskId}`}
+                value={opt.value}
+                checked={visibility === opt.value}
+                onChange={() => setVisibility(opt.value)}
+                disabled={submitting}
+                className="mt-0.5"
+              />
+              <span>
+                <span className="block font-bold text-foreground">{opt.label}</span>
+                <span className="block text-xs text-muted-foreground">{opt.description}</span>
+              </span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
 
       {error && (
         <p className="text-xs text-red-600" style={{ fontFamily: "var(--font-sans)" }}>
@@ -405,8 +466,28 @@ function TaskCard({
         <div className="border-t border-border pt-5">
           {task.mySubmission && !editing ? (
             <div>
-              <div className="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                Moje řešení
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                  <span>Moje řešení</span>
+                  <span
+                    className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-bold normal-case tracking-wider text-muted-foreground"
+                    title={
+                      VISIBILITY_OPTIONS.find((o) => o.value === task.mySubmission!.visibility)
+                        ?.description
+                    }
+                  >
+                    {VISIBILITY_LABEL[task.mySubmission.visibility]}
+                  </span>
+                </div>
+                <span
+                  className="inline-flex items-center gap-1 text-xs font-bold text-muted-foreground"
+                  title="Srdce od ostatních"
+                >
+                  <Heart
+                    className={`h-4 w-4 ${task.mySubmission.heartCount > 0 ? "fill-current text-red-500" : ""}`}
+                  />
+                  {task.mySubmission.heartCount}
+                </span>
               </div>
               <div className="space-y-3 rounded-lg border border-border bg-background px-4 py-3">
                 {task.solutionFields.map((field) => {
@@ -440,6 +521,11 @@ function TaskCard({
               >
                 <Edit2 className="h-3 w-3" /> Upravit řešení
               </button>
+              <CommentSection
+                submissionId={task.mySubmission._id}
+                comments={task.mySubmission.comments}
+                defaultDisplayName={defaultDisplayName}
+              />
             </div>
           ) : (
             <div>
