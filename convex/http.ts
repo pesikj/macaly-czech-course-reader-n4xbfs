@@ -25,11 +25,18 @@ http.route({
       return new Response("Missing path parameter", { status: 400 })
     }
 
-    // Reject path traversal and non-image files
-    if (imagePath.includes("..") || imagePath.includes("//")) {
+    // Reject path traversal, absolute paths, URL-like values, and non-image files.
+    if (
+      imagePath.includes("..") ||
+      imagePath.includes("//") ||
+      imagePath.startsWith("/") ||
+      imagePath.includes("\\") ||
+      /[\u0000-\u001F\u007F]/.test(imagePath) ||
+      /^[a-z][a-z0-9+.-]*:/i.test(imagePath)
+    ) {
       return new Response("Invalid path", { status: 400 })
     }
-    const allowedImageExts = new Set(["png", "jpg", "jpeg", "gif", "svg", "webp"])
+    const allowedImageExts = new Set(["png", "jpg", "jpeg", "gif", "webp"])
     const reqExt = imagePath.split(".").pop()?.toLowerCase() ?? ""
     if (!allowedImageExts.has(reqExt)) {
       return new Response("Invalid file type", { status: 400 })
@@ -60,16 +67,14 @@ http.route({
     const ext = imagePath.split(".").pop()?.toLowerCase() ?? "png"
     const contentTypeMap: Record<string, string> = {
       png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg",
-      gif: "image/gif", svg: "image/svg+xml", webp: "image/webp",
+      gif: "image/gif", webp: "image/webp",
     }
     const contentType = contentTypeMap[ext] ?? "image/png"
 
     const responseHeaders: Record<string, string> = {
       "Content-Type": contentType,
+      "X-Content-Type-Options": "nosniff",
       "Cache-Control": "public, max-age=86400",
-    }
-    if (ext === "svg") {
-      responseHeaders["Content-Security-Policy"] = "sandbox"
     }
 
     return new Response(imageData, { headers: responseHeaders })

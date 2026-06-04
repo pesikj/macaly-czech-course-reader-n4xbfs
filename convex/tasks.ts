@@ -30,6 +30,18 @@ async function assertAdmin(ctx: MutationCtx) {
   return userId
 }
 
+function canViewSubmission(
+  submission: { userId: unknown; visibility?: "everyone" | "team" | "private" },
+  userId: unknown,
+  elevated: boolean
+) {
+  if (submission.userId === userId) return true
+  const visibility = submission.visibility ?? "everyone"
+  if (visibility === "private") return false
+  if (visibility === "team") return elevated
+  return true
+}
+
 // ── Internal: called from sync ────────────────────────────────────
 
 export const upsertTask = internalMutation({
@@ -136,6 +148,7 @@ export const getTaskWithSubmissions = query({
       .first()
 
     if (!task) return null
+    if (!task.isOpen && !elevated) return null
 
     const allSubmissions = await ctx.db
       .query("taskSubmissions")
@@ -144,11 +157,7 @@ export const getTaskWithSubmissions = query({
       .collect()
 
     const submissions = allSubmissions.filter((s) => {
-      if (s.userId === userId) return true
-      const vis = s.visibility ?? "everyone"
-      if (vis === "private") return false
-      if (vis === "team") return elevated
-      return true
+      return canViewSubmission(s, userId, elevated)
     })
 
     const enrichedSubmissions = await Promise.all(
@@ -274,6 +283,10 @@ export const toggleHeart = mutation({
     const submission = await ctx.db.get(submissionId)
     if (!submission) throw new Error("Příspěvek nenalezen.")
     if (submission.userId === userId) throw new Error("Nemůžete dát srdce vlastnímu řešení.")
+    const role = await getUserRole(ctx)
+    if (!canViewSubmission(submission, userId, role.isAdmin || role.isTeamMember)) {
+      throw new Error("Nemáte oprávnění zobrazit tento příspěvek.")
+    }
 
     const task = await ctx.db
       .query("tasks")
@@ -314,6 +327,10 @@ export const addComment = mutation({
 
     const submission = await ctx.db.get(submissionId)
     if (!submission) throw new Error("Příspěvek nenalezen.")
+    const role = await getUserRole(ctx)
+    if (!canViewSubmission(submission, userId, role.isAdmin || role.isTeamMember)) {
+      throw new Error("Nemáte oprávnění zobrazit tento příspěvek.")
+    }
 
     const task = await ctx.db
       .query("tasks")
