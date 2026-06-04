@@ -1,6 +1,8 @@
 import { query, internalQuery, internalMutation, internalAction } from "./_generated/server"
 import { v } from "convex/values"
 import { internal } from "./_generated/api"
+import { getAuthUserId } from "@convex-dev/auth/server"
+import { hasElevatedAccess } from "./users"
 
 export const getLectureContent = query({
   args: { lectureId: v.string() },
@@ -16,6 +18,9 @@ export const getLectureContent = query({
     v.null()
   ),
   handler: async (ctx, { lectureId }) => {
+    const userId = await getAuthUserId(ctx)
+    if (!userId) return null
+
     const doc = await ctx.db
       .query("lectureContents")
       .withIndex("by_lectureId", (q) => q.eq("lectureId", lectureId))
@@ -37,6 +42,9 @@ export const getAllSyncedLectureIds = query({
   args: {},
   returns: v.array(v.string()),
   handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx)
+    if (!userId) return []
+
     const rows = await ctx.db.query("lectureContents").collect()
     return rows.map((r) => r.lectureId)
   },
@@ -112,6 +120,8 @@ export const getLatestSyncLog = query({
     v.null()
   ),
   handler: async (ctx) => {
+    if (!(await hasElevatedAccess(ctx))) return null
+
     return await ctx.db
       .query("syncLog")
       .order("desc")

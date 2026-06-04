@@ -24,19 +24,33 @@ function decodeBase64(encoded: string): string {
 
 const EXT_TO_MIME: Record<string, string> = {
   png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg",
-  gif: "image/gif", svg: "image/svg+xml", webp: "image/webp",
+  gif: "image/gif", webp: "image/webp",
+}
+
+function isSafeRelativePath(path: string): boolean {
+  return (
+    !path.includes("..") &&
+    !path.includes("//") &&
+    !path.startsWith("/") &&
+    !path.includes("\\") &&
+    !/[\u0000-\u001F\u007F]/.test(path) &&
+    !/^[a-z][a-z0-9+.-]*:/i.test(path)
+  )
 }
 
 /** Fetch image from GitHub and return as base64 data URI, or null on failure */
 async function fetchImageAsDataUri(imagePath: string, token: string, branch: string): Promise<string | null> {
+  if (!isSafeRelativePath(imagePath)) return null
+  const ext = imagePath.split(".").pop()?.toLowerCase() ?? ""
+  if (!EXT_TO_MIME[ext]) return null
+
   const res = await githubFetch(imagePath, token, branch)
   if (!res.ok) {
     console.error(`Failed to fetch image ${imagePath}: ${res.status}`)
     return null
   }
   const file = await res.json() as { content?: string; encoding?: string; sha?: string; size?: number }
-  const ext = imagePath.split(".").pop()?.toLowerCase() ?? "png"
-  const mime = EXT_TO_MIME[ext] ?? "image/png"
+  const mime = EXT_TO_MIME[ext]
 
   // Files > 1 MB: content is empty, use Git Blobs API instead
   if (!file.content && file.sha) {
@@ -69,6 +83,7 @@ async function embedImages(markdown: string, directory: string, token: string, b
     const [fullMatch, alt, src] = match
     const cleanSrc = src.startsWith("./") ? src.slice(2) : src
     const imagePath = `${directory}/${cleanSrc}`
+    if (!isSafeRelativePath(imagePath)) continue
     console.log(`Embedding image: ${imagePath} (branch: ${branch})`)
     const dataUri = await fetchImageAsDataUri(imagePath, token, branch)
     if (dataUri) {

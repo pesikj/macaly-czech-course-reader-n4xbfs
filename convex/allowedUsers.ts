@@ -4,6 +4,14 @@ import { getAuthUserId } from "@convex-dev/auth/server"
 
 // ── Helpers ────────────────────────────────────────────────────────
 
+function normalizeEmail(raw: string): string {
+  const normalized = raw.trim().toLowerCase()
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) {
+    throw new Error("Neplatná e-mailová adresa.")
+  }
+  return normalized
+}
+
 async function requireAdmin(ctx: any) {
   const userId = await getAuthUserId(ctx)
   if (!userId) throw new Error("Nejste přihlášeni.")
@@ -50,7 +58,7 @@ export const add = mutation({
   returns: v.union(v.id("allowedUsers"), v.null()),
   handler: async (ctx, { email, isAdmin, isTeamMember }) => {
     await requireAdmin(ctx)
-    const normalized = email.trim().toLowerCase()
+    const normalized = normalizeEmail(email)
     const existing = await ctx.db
       .query("allowedUsers")
       .withIndex("by_email", (q) => q.eq("email", normalized))
@@ -78,8 +86,13 @@ export const addBulk = mutation({
     let added = 0
     let skipped = 0
     for (const raw of emails) {
-      const normalized = raw.trim().toLowerCase()
-      if (!normalized) continue
+      let normalized: string
+      try {
+        normalized = normalizeEmail(raw)
+      } catch {
+        skipped++
+        continue
+      }
       const existing = await ctx.db
         .query("allowedUsers")
         .withIndex("by_email", (q) => q.eq("email", normalized))

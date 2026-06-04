@@ -60,12 +60,48 @@ function LectureImage({ src, alt }: React.ImgHTMLAttributes<HTMLImageElement>) {
   return <img src={src} alt={alt ?? ''} style={{ maxWidth: '100%', height: 'auto' }} />;
 }
 
+function safeUrlTransform(url: string): string {
+  const trimmed = url.trim();
+  const normalized = trimmed.replace(/[\u0000-\u001F\u007F\s]+/g, "");
+
+  if (
+    normalized.startsWith("/") ||
+    normalized.startsWith("./") ||
+    normalized.startsWith("../") ||
+    normalized.startsWith("#")
+  ) {
+    return normalized;
+  }
+
+  if (!normalized.startsWith("//") && !/^[a-z][a-z0-9+.-]*:/i.test(normalized)) {
+    return normalized;
+  }
+
+  try {
+    const parsed = new URL(normalized);
+    const protocol = parsed.protocol.toLowerCase();
+    if (protocol === "http:" || protocol === "https:" || protocol === "mailto:" || protocol === "tel:") {
+      return normalized;
+    }
+    if (
+      protocol === "data:" &&
+      /^data:image\/(?:png|jpeg|jpg|gif|webp);base64,/i.test(normalized)
+    ) {
+      return normalized;
+    }
+  } catch {
+    return "";
+  }
+
+  return "";
+}
+
 export default function MarkdownRenderer({ content }: Props) {
   return (
     <div className="prose-lecture">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
-        urlTransform={(url) => url}
+        urlTransform={safeUrlTransform}
         components={{
           pre: PreBlock,
           img: LectureImage,
